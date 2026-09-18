@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "知乎摸鱼助手",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "把知乎页面伪装成在线文档,老板路过也看不出你在摸鱼",
   "minimum_chrome_version": "102",
   "icons": {

@@ -204,6 +204,7 @@
         '<span class="tdoc-side-tab" data-tab="bookmark">书签</span>' +
         '<span class="tdoc-side-tab-extra">查找和替换</span>' +
       '</div>' +
+      '<div class="tdoc-toc-progress" id="tdoc-toc-progress"></div>' +
       '<div class="tdoc-side-body" id="tdoc-toc-body"></div>' +
     '</div>' +
     '<div class="tdoc-side tdoc-side-right">' +
@@ -285,10 +286,11 @@
     var pt = pageType();
 
     // 问题/回答页:回答者导航(知道当前在看谁 + 快速切换),回答内标题作子项
+    // kind:'question'|'answer'|'heading' —— answer 参与序号与进度统计
     if (pt === 'question' || pt === 'answer') {
       var q = document.querySelector('.QuestionHeader-title');
       if (normText(q && q.textContent)) {
-        items.push({ level: 0, text: '【问题】' + normText(q.textContent), el: q });
+        items.push({ kind: 'question', level: 0, text: '【问题】' + normText(q.textContent), el: q });
       }
       var ans = document.querySelectorAll('[class~="AnswerItem"]');
       for (var a = 0; a < ans.length; a++) {
@@ -298,6 +300,7 @@
         var voteMeta = el.querySelector('meta[itemprop="upvoteCount"]');
         var votes = voteMeta ? voteMeta.getAttribute('content') : '';
         items.push({
+          kind: 'answer',
           level: 0,
           text: name + (votes ? ' · ' + votes + ' 赞同' : ''),
           el: el
@@ -307,6 +310,7 @@
           var ht = normText(hs[h].textContent);
           if (!ht) continue;
           items.push({
+            kind: 'heading',
             level: Math.min(parseInt(hs[h].tagName.charAt(1), 10) - 1, 3),
             text: ht,
             el: hs[h]
@@ -326,6 +330,7 @@
       var text = normText(all[i].textContent);
       if (!text) continue;
       items.push({
+        kind: 'heading',
         level: Math.min(parseInt(all[i].tagName.charAt(1), 10) - 1, 3),
         text: text,
         el: all[i]
@@ -335,27 +340,35 @@
   }
 
   // 按当前视图渲染导航主体;data-i 为 _tocItems 下标,供点击跳转与滚动高亮反查
+  // 问题页回答统一编号(1. 张三 · 123 赞同),编号同时供进度条使用
   function renderToc() {
     var body = document.getElementById('tdoc-toc-body');
     if (!body) return;
+    var ansNo = 0;
+    for (var k = 0; k < _tocItems.length; k++) {
+      if (_tocItems[k].kind === 'answer') _tocItems[k].no = ++ansNo;
+    }
     // 暂无内容(正文未渲染)时显示骨架占位,看起来像"目录加载中",比空白更真实
     if (!_tocItems.length) {
       body.innerHTML = '<div class="tdoc-toc-skel"><i></i><i></i><i></i><i></i><i></i><i></i></div>';
+      updateAnswerProgress(_tocActiveIdx);
       return;
     }
     var html = '';
     for (var i = 0; i < _tocItems.length; i++) {
       var it = _tocItems[i];
+      var label = (it.kind === 'answer' ? it.no + '. ' : '') + esc(it.text);
       if (_tocView === 'chapter') {
         html += '<div class="tdoc-toc-item lv0" data-i="' + i + '">' + (i + 1) + '. ' + esc(it.text) + '</div>';
       } else if (_tocView === 'bookmark') {
         if (i > 2) break;
         html += '<div class="tdoc-toc-item lv0" data-i="' + i + '">🔖 书签' + (i + 1) + ' · ' + esc(it.text) + '</div>';
       } else {
-        html += '<div class="tdoc-toc-item lv' + it.level + '" data-i="' + i + '">' + esc(it.text) + '</div>';
+        html += '<div class="tdoc-toc-item lv' + it.level + '" data-i="' + i + '">' + label + '</div>';
       }
     }
     body.innerHTML = html;
+    updateAnswerProgress(_tocActiveIdx);
   }
 
   // 转义标题文本,防止知乎内容里的 < > & 破坏导航 DOM(兼 XSS 防护)
@@ -375,6 +388,7 @@
 
   // 滚动时高亮"当前在读"项:最后一个顶部越过 180px(顶栏 131px + 容差)的锚点
   // 问题页即"当前在看谁的回答",配合点击实现快速切换
+  var _tocActiveIdx = 0; // 当前高亮项下标,进度条与重渲染后恢复位置用
   function highlightToc() {
     if (!_tocItems.length || _tocView !== 'toc') return;
     var body = document.getElementById('tdoc-toc-body');
@@ -383,10 +397,40 @@
     for (var i = 0; i < _tocItems.length; i++) {
       if (_tocItems[i].el.getBoundingClientRect().top < 180) activeIdx = i;
     }
+    _tocActiveIdx = activeIdx;
     var nodes = body.querySelectorAll('.tdoc-toc-item');
     for (var n = 0; n < nodes.length; n++) {
       nodes[n].classList.toggle('active', parseInt(nodes[n].getAttribute('data-i'), 10) === activeIdx);
     }
+    updateAnswerProgress(activeIdx);
+  }
+
+  // ========== 回答阅读进度(问题页左栏,v0.9) ==========
+  // 总数取自列表头"1,237 个回答"(页面加载即可知,无需滚到底);
+  // 读不到(单回答页/知乎改版)退化为"已加载回答数",进度显示为 回答 3/12
+  function totalAnswers() {
+    var els = document.querySelectorAll('.List-headerText span, .List-header [class*="count"], .List-headerText');
+    for (var i = 0; i < els.length; i++) {
+      var m = (els[i].textContent || '').match(/([\d,]+)\s*个?\s*回答/);
+      if (m) return parseInt(m[1].replace(/,/g, ''), 10) || 0;
+    }
+    return 0;
+  }
+
+  function updateAnswerProgress(activeIdx) {
+    var el = document.getElementById('tdoc-toc-progress');
+    if (!el) return;
+    var loaded = 0, cur = 0;
+    for (var i = 0; i < _tocItems.length; i++) {
+      if (_tocItems[i].kind !== 'answer') continue;
+      loaded++;
+      if (i <= activeIdx) cur = _tocItems[i].no || loaded;
+    }
+    if (!loaded) { el.textContent = ''; return; }
+    var total = totalAnswers() || loaded;
+    if (cur < 1) cur = 1; // 停在问题标题/首回答上方时算第 1 个
+    var pct = Math.min(100, Math.round(cur / total * 1000) / 10);
+    el.textContent = '回答 ' + cur + '/' + total + ' · ' + pct + '%';
   }
 
   // ========== 正文图片/视频交互(与 content.css 配合) ==========
@@ -1109,6 +1153,7 @@
         applyModeClass();
         updateChromeFilename();
         _tocSig = ''; // 强制重建目录
+        _tocActiveIdx = 0; // 新页面从顶部算起
         updateToc();
         updateStatus();
         tagCommentButtons(); // 新页面的操作栏需要重新标记评论入口
