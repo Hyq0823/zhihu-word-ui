@@ -16,6 +16,7 @@ var els = {
   strategy: $('strategy-sel'),
   hotkey: $('hotkey-sel'),
   fab: $('fab-chk'),
+  comments: $('comments-chk'),
   panicKey: $('panic-key-sel'),
   panicMode: $('panic-mode-sel'),
   panicUrlRow: $('panic-url-row'),
@@ -27,6 +28,7 @@ var KEYS = {
   strategy: 'tdoc_strategy',
   hotkey: 'tdoc_hotkey',
   fabVisible: 'tdoc_fab_visible',
+  comments: 'tdoc_comments',
   panicKey: 'tdoc_panic_key',
   panicMode: 'tdoc_panic_mode',
   panicUrl: 'tdoc_panic_url'
@@ -35,6 +37,7 @@ var DEFAULTS = {
   strategy: 'detail',
   hotkey: 'dbl-space',
   fabVisible: '0',
+  comments: '0',
   panicKey: 'dbl-esc',
   panicMode: 'terminal',
   panicUrl: ''
@@ -106,6 +109,7 @@ chrome.storage.sync.get(allKeys, function (r) {
   els.strategy.value = r[KEYS.strategy] || DEFAULTS.strategy;
   els.hotkey.value = r[KEYS.hotkey] || DEFAULTS.hotkey;
   els.fab.checked = r[KEYS.fabVisible] === '1';
+  els.comments.checked = r[KEYS.comments] === '1';
   els.panicKey.value = r[KEYS.panicKey] || DEFAULTS.panicKey;
   els.panicMode.value = r[KEYS.panicMode] || DEFAULTS.panicMode;
   els.panicUrl.value = r[KEYS.panicUrl] || DEFAULTS.panicUrl;
@@ -115,8 +119,32 @@ chrome.storage.sync.get(allKeys, function (r) {
 els.strategy.addEventListener('change', function () { save(KEYS.strategy, els.strategy.value); refreshState(); });
 els.hotkey.addEventListener('change', function () { save(KEYS.hotkey, els.hotkey.value); });
 els.fab.addEventListener('change', function () { save(KEYS.fabVisible, els.fab.checked ? '1' : '0'); });
+els.comments.addEventListener('change', function () { save(KEYS.comments, els.comments.checked ? '1' : '0'); });
 els.panicKey.addEventListener('change', function () { save(KEYS.panicKey, els.panicKey.value); });
 els.panicMode.addEventListener('change', function () { save(KEYS.panicMode, els.panicMode.value); syncUrlRow(); });
 els.panicUrl.addEventListener('change', function () { save(KEYS.panicUrl, els.panicUrl.value.trim()); });
+
+// ===== redirect 老板键的"返回"入口 =====
+// content 跳转工作页前把原地址写进 storage.local(记录存于扩展侧,任何页面打开弹窗都能取到),
+// 这里读出来渲染按钮;点击后当前 tab 跳回原地址并清除记录。
+var returnBtn = $('btn-return');
+chrome.storage.local.get('tdoc_panic_return', function (r) {
+  var url = r && r.tdoc_panic_return;
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return;
+  var label = url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+  if (label.length > 30) label = label.slice(0, 30) + '…';
+  returnBtn.textContent = '↩ 返回阅读:' + label;
+  returnBtn.dataset.url = url;
+  returnBtn.classList.remove('hide');
+});
+returnBtn.addEventListener('click', function () {
+  var url = returnBtn.dataset.url;
+  if (!url) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    if (tabs && tabs[0]) chrome.tabs.update(tabs[0].id, { url: url });
+    chrome.storage.local.remove('tdoc_panic_return');
+    returnBtn.classList.add('hide');
+  });
+});
 
 refreshState();

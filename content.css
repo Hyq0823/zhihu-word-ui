@@ -133,6 +133,9 @@ html.tdoc-disguised h1,
 html.tdoc-disguised h2,
 html.tdoc-disguised h3,
 html.tdoc-disguised h4 { scroll-margin-top: calc(var(--tdoc-chrome-h) + 20px); }
+/* 问题页回答者导航的锚点是回答卡片(div,不被上面的 h1-h4 规则覆盖),同样避开固定顶栏 */
+html.tdoc-disguised [class~="AnswerItem"],
+html.tdoc-disguised .QuestionHeader-title { scroll-margin-top: calc(var(--tdoc-chrome-h) + 20px); }
 
 /* ===== FAB ===== */
 #__tdoc_fab__ {
@@ -203,8 +206,7 @@ html.tdoc-disguised [class*="Reward"],
 html.tdoc-disguised .FollowButton,
 html.tdoc-disguised [class*="Post-Follow"],
 html.tdoc-disguised [class*="QuestionFollow"],
-/* 评论区 */
-html.tdoc-disguised [class*="Comments"],
+/* 评论区与文章页底部栏不在此隐藏:由下方"评论区"专区按 tdoc-comments-on 开关控制 */
 /* 页脚 */
 html.tdoc-disguised [class*="Footer"],
 html.tdoc-disguised [class*="AboutFooter"],
@@ -223,9 +225,8 @@ html.tdoc-disguised [class*="AuthorInfo-badge"],
 /* 复制按钮(展开类控件不在此隐藏,见下方"内容展开"专区,避免阻断阅读全文) */
 html.tdoc-disguised [class*="RichText-More"],
 html.tdoc-disguised [class*="RichText-Copy"],
-/* 问题页杂项 */
+/* 问题页杂项(Post-Sub 移入"评论区"专区按开关控制;Post-SubExtra 仍恒隐藏) */
 html.tdoc-disguised [class*="QuestionAuthor"],
-html.tdoc-disguised [class*="Post-Sub"],
 html.tdoc-disguised [class*="Post-Reward"],
 html.tdoc-disguised [class*="Post-SubExtra"],
 html.tdoc-disguised [class*="Post-AuthorInfo-Extra"],
@@ -1242,6 +1243,191 @@ html.tdoc-mode-answer .Question-mainColumn {
 html.tdoc-disguised .tdoc-statusbar { display: flex; }
 .tdoc-statusbar .tdoc-status-warn { color: #D48806; }
 .tdoc-statusbar .tdoc-status-right { margin-left: auto; color: #777; }
+
+/* ============================================================
+   评论区(v0.8)—— 默认全隐藏;popup 打开「伪装时显示评论区」
+   (tdoc_comments → html.tdoc-comments-on)后以"文档批注"样式显示
+   - 入口:content.js tagCommentButtons() 给文本含「评论」的按钮打
+     .tdoc-comment-btn、给其在操作栏中的直接子级容器打 .tdoc-comment-slot,
+     下方样式只放行这两者,其余操作按钮(赞同/分享/收藏等)维持隐藏
+   - 交互全原生:展开/回复/点赞/翻页均不拦截
+   ============================================================ */
+/* 关闭态:维持 v0.8 原隐藏行为(评论容器 + 文章页底部操作栏) */
+html.tdoc-disguised:not(.tdoc-comments-on) [class*="Comments"],
+html.tdoc-disguised:not(.tdoc-comments-on) [class*="Post-Sub"] { display: none !important; }
+
+/* 开启态 · 评论入口 chip:透明底灰字,文档语境下即"批注"入口 */
+html.tdoc-disguised.tdoc-comments-on .tdoc-comment-btn,
+html.tdoc-disguised.tdoc-comments-on .ContentItem-action.tdoc-comment-btn {
+  display: inline-flex !important;
+  align-items: center; gap: 4px;
+  background: transparent !important;
+  border: none !important; box-shadow: none !important;
+  padding: 2px 6px !important; margin: 0 !important;
+  font-size: 12px !important; color: #888 !important;
+  cursor: pointer;
+}
+html.tdoc-disguised.tdoc-comments-on .tdoc-comment-btn:hover { color: #1A73E8 !important; }
+html.tdoc-disguised.tdoc-comments-on .tdoc-comment-slot {
+  display: inline-flex !important;
+  background: transparent !important; border: none !important;
+  padding: 0 !important; margin: 0 !important;
+}
+
+/* 开启态 · 卡片操作栏:仍只放行"评论 chip + 收起/展开 + 评论容器",其余子级全隐
+   (:not([class*="Comments"]) 防评论列表恰好渲染在操作栏内部时被误杀) */
+html.tdoc-disguised.tdoc-comments-on .ContentItem-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  background: transparent !important; border: none !important; box-shadow: none !important;
+  padding: 0 !important; margin: 6px 0 0 !important;
+}
+html.tdoc-disguised.tdoc-comments-on .ContentItem-actions > *:not(.ContentItem-rightButton):not(.tdoc-comment-slot):not(.tdoc-comment-btn):not([class*="Comments"]) { display: none !important; }
+/* 列表(首页)模式:默认隐藏整个操作栏,开启评论后恢复为"仅评论 chip" */
+html.tdoc-disguised.tdoc-comments-on.tdoc-mode-list .ContentItem-actions {
+  display: flex !important;
+  justify-content: flex-end !important; align-items: center;
+  background: transparent !important; border: none !important; box-shadow: none !important;
+  padding: 0 !important; margin: 2px 0 0 !important;
+}
+
+/* 开启态 · 文章页底部栏:只放行评论槽位 */
+html.tdoc-disguised.tdoc-comments-on .Post-Sub {
+  display: flex !important;
+  justify-content: flex-end !important; align-items: center;
+  flex-wrap: wrap;
+  background: transparent !important; border: none !important; box-shadow: none !important;
+  padding: 4px 0 0 !important; margin: 6px 0 0 !important;
+}
+html.tdoc-disguised.tdoc-comments-on .Post-Sub > *:not(.tdoc-comment-slot):not(.tdoc-comment-btn):not([class*="Comments"]) { display: none !important; }
+
+/* 开启态 · 评论容器 → "批注面板":容器级宽松样式(字体/颜色向下继承),
+   不深依赖 CommentItemV2 等易变子类名;知乎发版后可用 __tdoc.diag() 校准 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments-container"],
+html.tdoc-disguised.tdoc-comments-on [class*="CommentList"] {
+  background: #FAFAF9 !important;
+  border: none !important;
+  border-left: 3px solid #D8D8D6 !important;
+  border-radius: 2px !important;
+  padding: 10px 14px !important;
+  margin: 10px 0 4px !important;
+  font-size: 13px !important;
+  color: #555 !important;
+  box-shadow: none !important;
+}
+/* 批注面板内链接统一文档蓝 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] a { color: #1A73E8 !important; text-decoration: none !important; }
+/* 评论区内部广告 / App 下载引导仍隐藏(与全局反广告口径一致) */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="advert" i],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="Banner"],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="OpenApp"],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="Download"],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="Promotion"] { display: none !important; }
+
+/* --------- 评论内部精修(批注样式深度覆盖) ---------
+   知乎对评论内部(作者/正文/时间/按钮/子评论)自带高特异性样式,
+   容器级 font/color 继承压不住 → 按"角色"逐项覆盖:
+   属性包含选择器为主 + 标签角色兜底;发版后可用 __tdoc.diag() 校准 */
+/* 去装饰阴影:子评论展开的白色浮卡拍平 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] * { box-shadow: none !important; }
+/* 头部:"N 条评论" + 排序页签 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="header"],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="Header"] {
+  font-size: 13px !important; color: #666 !important; font-weight: 600 !important;
+  background: transparent !important; border-bottom: 1px solid #E7E7E4 !important;
+}
+/* 作者名:墨灰加粗(批注作者惯例),不用链接蓝 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="UserLink"],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="Author"],
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] a {
+  color: #44443F !important; font-weight: 600 !important; font-size: 13px !important;
+}
+/* 作者徽章/标签:浅灰小 chip */
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] [class*="adge"],
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] [class*="badge"],
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] [class*="Tag"] {
+  color: #999 !important; background: #F0F0EE !important;
+  font-size: 11px !important; font-weight: 400 !important; padding: 1px 5px !important;
+}
+/* 评论正文 */
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] [class*="content"],
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] [class*="Content"] {
+  font-size: 13.5px !important; color: #333 !important; line-height: 1.7 !important;
+}
+/* 评论正文若命中全局 .RichText 段落样式:去缩进、回小字号 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] .RichText p,
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] p {
+  text-indent: 0 !important;
+  font: 13.5px/1.7 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif !important;
+  margin: 0 0 6px !important; color: #333 !important;
+}
+/* 时间/地区等 meta */
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] time,
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] [class*="meta"],
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] [class*="Meta"] {
+  font-size: 12px !important; color: #9A9A96 !important;
+}
+/* 操作按钮(回复/喜欢/展开回复):灰小字、去图标,贴合批注面板 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] button {
+  background: transparent !important; border: none !important;
+  font-size: 12px !important; color: #8A8A86 !important; padding: 2px 4px !important;
+}
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] button:hover { color: #1A73E8 !important; }
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] button svg { display: none !important; }
+/* 例外:发布按钮保持蓝色实心;排序选中态加深 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] button[class*="primary" i],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] button[class*="blue" i] {
+  background: #1A73E8 !important; color: #fff !important;
+  border-radius: 3px !important; padding: 4px 14px !important;
+}
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] button[class*="active" i],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] button[class*="selected" i] {
+  color: #333 !important; font-weight: 600 !important;
+}
+/* 每条评论右侧 ⋯ 菜单隐藏(减少举报/删除入口暴露面) */
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] [class*="MenuButton"],
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] [class*="menuButton"] { display: none !important; }
+/* 评论条目:透明底 + 虚线分隔(批注列表观感) */
+html.tdoc-disguised.tdoc-comments-on [class*="CommentItem"] {
+  background: transparent !important; border: none !important;
+  border-bottom: 1px dashed #E3E3E0 !important;
+  padding: 10px 2px !important;
+}
+/* 子评论区(评论的评论):内嵌浅灰面板,不再是悬浮白卡 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="SubComment"],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="subComment"] {
+  background: #F4F4F1 !important;
+  border: 1px solid #E7E7E4 !important;
+  border-radius: 3px !important;
+  padding: 4px 12px !important;
+  margin: 6px 0 6px 12px !important;
+}
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="SubComment"] [class*="CommentItem"],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="subComment"] [class*="CommentItem"] {
+  border-bottom: 1px dashed #E0E0DC !important; padding: 8px 2px !important;
+}
+/* 编辑器(评论输入/回复框):浅灰内嵌 */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="Editor"],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [class*="editor"] {
+  background: #FBFBF9 !important; border: 1px solid #E7E7E4 !important;
+  border-radius: 3px !important; padding: 8px 10px !important;
+}
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] textarea,
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] input[type="text"],
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] [contenteditable="true"] {
+  background: transparent !important; border: none !important;
+  font-size: 13px !important; color: #333 !important;
+}
+/* 表情内联小图标;评论配图限宽(覆盖全局 img 居中块级规则) */
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] img.Emoji,
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] img[class*="Emoji"] {
+  display: inline !important; width: 20px !important; max-width: 20px !important;
+  margin: 0 1px !important; vertical-align: -4px !important;
+}
+html.tdoc-disguised.tdoc-comments-on [class*="Comments"] img {
+  display: block !important; max-width: 240px !important; margin: 6px 0 !important;
+}
 
 /* ============================================================
    老板键覆盖层(v0.8)—— 双击 Esc 全屏"无害画面"

@@ -12,6 +12,7 @@
  * - 老板键:双击 Esc 全屏"无害画面"(假终端/假表格/跳转工作页),与伪装正交
  * - 自动伪装策略:detail/all/manual/off 四档,storage.sync 源 + LS 镜像首帧同步读
  * - FAB 伪装态隐匿:默认不可见,hover 右下角低透明度浮现
+ * - 评论区开关:默认隐藏;popup 打开后评论入口/列表以"文档批注"样式显示(交互保持原生)
  * ============================================================ */
 (function () {
   'use strict';
@@ -30,6 +31,7 @@
   var PANIC_MODE_KEY = 'tdoc_panic_mode';   // 老板键画面:terminal(假终端) | sheet(假表格) | redirect(跳转)
   var PANIC_URL_KEY = 'tdoc_panic_url';     // redirect 模式跳转的工作页 URL
   var FAB_VIS_KEY = 'tdoc_fab_visible';     // 伪装态是否常显 FAB('1' 显示;默认隐匿)
+  var COMMENTS_KEY = 'tdoc_comments';       // 伪装态是否显示评论区('1' 显示;默认隐藏,开启后为批注样式)
   var DEFAULT_PANIC_KEY = 'dbl-esc';
   var DEFAULT_PANIC_MODE = 'terminal';
   // ---- v0.8 注入节点 id ----
@@ -54,7 +56,8 @@
     panicKey: DEFAULT_PANIC_KEY,
     panicMode: DEFAULT_PANIC_MODE,
     panicUrl: '',
-    fabVisible: false
+    fabVisible: false,
+    comments: false             // 评论区默认隐藏(暴露面最小);popup 可开
   };
 
   // 会话内手动切换的最高优先级:null=未手动干预,true/false=用户明确意图。
@@ -470,6 +473,30 @@
     });
   }
 
+  // ========== 评论入口标记(配合 html.tdoc-comments-on,v0.8) ==========
+  // 知乎评论按钮没有稳定语义类名(混在通用 ContentItem-action 里),纯 CSS 无法单独选中;
+  // 这里只给文本含「评论」的按钮打 .tdoc-comment-btn、给它在操作栏中的直接子级容器打
+  // .tdoc-comment-slot,CSS 据此放行并重样式化为"批注入口"。
+  // 不绑事件、不改文本、不拦截交互;React 重渲染掉 class 后由防抖观察器自动补打。
+  function tagCommentButtons() {
+    if (!state.disguised || !cfg.comments) return;
+    // 卡片操作栏(首页/问答页回答)+ 文章页底部操作栏
+    var bars = document.querySelectorAll('.ContentItem-actions, .Post-Sub');
+    for (var i = 0; i < bars.length; i++) {
+      var bar = bars[i];
+      var btns = bar.querySelectorAll('button');
+      for (var j = 0; j < btns.length; j++) {
+        var btn = btns[j];
+        if ((btn.textContent || '').indexOf('评论') === -1) continue;
+        btn.classList.add('tdoc-comment-btn');
+        // slot = 按钮所在的 bar 直接子级:CSS 隐藏 bar 全部直接子级、只放行 slot 与按钮
+        var slot = btn;
+        while (slot.parentElement && slot.parentElement !== bar) slot = slot.parentElement;
+        if (slot !== btn) slot.classList.add('tdoc-comment-slot');
+      }
+    }
+  }
+
   // ========== 文件名(顶栏中央 & tab 标题同源) ==========
   // 详情页 = 标题(个人主页取人名) + ".docx" 后缀,强化"这是一份文档"的认知;
   // 列表页 = "最近文档"。超 28 字截断防顶栏溢出。
@@ -597,6 +624,7 @@
           updateChromeFilename();
           updateToc();
           updateStatus();
+          tagCommentButtons(); // React 重渲染会冲掉标记,随防抖统一补打
         }
       }, 300);
     });
@@ -639,6 +667,7 @@
     updateChromeFilename();
     updateToc();
     updateStatus();
+    tagCommentButtons(); // 评论区开启时补打入口标记(关闭态内部直接 return)
     startFilenameWatch();
     notifyState();
   }
@@ -689,13 +718,14 @@
     if (typeof r[PANIC_URL_KEY] === 'string') cfg.panicUrl = r[PANIC_URL_KEY];
     // onChanged 是局部变更:未出现在 r 里的键必须保持现值,不能被默认值冲掉
     if (r[FAB_VIS_KEY] !== undefined) cfg.fabVisible = r[FAB_VIS_KEY] === '1' || r[FAB_VIS_KEY] === true;
+    if (r[COMMENTS_KEY] !== undefined) cfg.comments = r[COMMENTS_KEY] === '1' || r[COMMENTS_KEY] === true;
     mirrorStrategy();
     applyConfig(prevStrategy);
   }
 
   function loadConfig() {
     try {
-      chrome.storage.sync.get([HOTKEY_KEY, STRATEGY_KEY, PANIC_KEY, PANIC_MODE_KEY, PANIC_URL_KEY, FAB_VIS_KEY], function (r) {
+      chrome.storage.sync.get([HOTKEY_KEY, STRATEGY_KEY, PANIC_KEY, PANIC_MODE_KEY, PANIC_URL_KEY, FAB_VIS_KEY, COMMENTS_KEY], function (r) {
         if (r) readConfigInto(r);
       });
       chrome.storage.onChanged.addListener(function (changes, area) {
@@ -707,9 +737,12 @@
     } catch (e) {}
   }
 
-  // 配置落地:FAB 显隐 class、老板键停用收层、策略变更即时按新策略重判当前页
+  // 配置落地:FAB 显隐 class、评论区显隐 class、老板键停用收层、策略变更即时按新策略重判当前页
   function applyConfig(prevStrategy) {
     document.documentElement.classList.toggle('tdoc-fab-on', !!cfg.fabVisible);
+    document.documentElement.classList.toggle('tdoc-comments-on', !!cfg.comments);
+    // 评论区刚打开:立即补打入口标记(观察器要等下一次 DOM 变化才会跑)
+    if (cfg.comments) tagCommentButtons();
     if (cfg.panicKey === 'off' && state.panic) hidePanic();
     if (prevStrategy !== undefined && prevStrategy !== cfg.strategy) {
       // 策略变了:清手动干预、破路由去重,立即重判(可能 show 也可能 hide)
@@ -777,6 +810,7 @@
   var _termTimer = null;
   var _termIdx = 0;
   var _savedOverflow = null;
+  var _panicFs = false; // 本次覆盖层是否由我们进入的全屏(恢复时只退出自己进的)
 
   // 假终端日志池:webpack/npm 风格构建输出,循环追加营造"正在跑 CI"的观感;
   // {TS} 占位符渲染为实时时间戳,强化"活的"错觉
@@ -937,7 +971,14 @@
     if (cfg.panicMode === 'redirect') {
       var url = (cfg.panicUrl || '').trim();
       // 仅放行 http(s) 绝对地址;未配置时静默降级为假终端,应急场景绝不"按了没反应"
-      if (/^https?:\/\//i.test(url)) { state.panic = true; location.href = url; return; }
+      if (/^https?:\/\//i.test(url)) {
+        state.panic = true;
+        // 记下阅读现场:跳走后本页面 JS 全部卸载,返回入口由 popup 读这条记录提供;
+        // 回到原地址时(init 里 PANIC_RETURNED)自动清除
+        try { chrome.storage.local.set({ tdoc_panic_return: location.href }); } catch (e) {}
+        location.href = url;
+        return;
+      }
     }
     if (document.getElementById(PANIC_ID)) return;
     var el = document.createElement('div');
@@ -957,6 +998,15 @@
     // 锁页面滚动:覆盖期间滚轮/按键都不动底下页面,恢复后滚动位置原样
     _savedOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = 'hidden';
+    // 盖住浏览器自身 UI(tab 条/地址栏):keydown 算用户手势,可合法进全屏;
+    // 用户在 fullscreen 下按 Esc 会被浏览器先行退出全屏 → fullscreenchange 里顺势收起覆盖层
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      try {
+        _panicFs = true;
+        var fsPromise = document.documentElement.requestFullscreen();
+        if (fsPromise && fsPromise.catch) fsPromise.catch(function () { _panicFs = false; });
+      } catch (e) { _panicFs = false; }
+    }
     if (cfg.panicMode !== 'sheet') startTermLoop();
   }
 
@@ -965,6 +1015,13 @@
     if (el) el.remove();
     stopTermLoop();
     state.panic = false;
+    if (_panicFs && document.fullscreenElement) {
+      try {
+        var exit = document.exitFullscreen();
+        if (exit && exit.catch) exit.catch(function () {});
+      } catch (e) {}
+    }
+    _panicFs = false;
     if (_savedOverflow !== null) {
       // || '' 防御:异常环境下读到的旧值若非字符串,赋 undefined 会被 CSSOM 当非法值
       document.documentElement.style.overflow = _savedOverflow || '';
@@ -1028,6 +1085,7 @@
         _tocSig = ''; // 强制重建目录
         updateToc();
         updateStatus();
+        tagCommentButtons(); // 新页面的操作栏需要重新标记评论入口
       }
     } else if (state.disguised) {
       // 详情页 → feed 且开关为 off:恢复知乎原生浏览
@@ -1148,6 +1206,29 @@
         c++;
       }
     }
+    out.push('');
+
+    // 评论区结构:用于校准"批注样式"选择器(知乎评论类名随版本变化,以真实 dump 为准)
+    out.push('--- 评论区结构 (Comments/CommentList/Post-Sub/操作栏, depth 3) ---');
+    var cm = document.querySelectorAll('[class*="Comments"], [class*="CommentList"], .Post-Sub, .ContentItem-actions');
+    if (!cm.length) out.push('(未找到评论相关节点——先在页面点开"评论"再跑一次)');
+    var dumped = 0;
+    for (var ci = 0; ci < cm.length && dumped < 6; ci++) {
+      var ct = [];
+      dumpTree(cm[ci], 3, 6, 0, ct);
+      out.push(ct.slice(0, 40).join('\n'));
+      out.push('');
+      dumped++;
+    }
+    out.push('--- 疑似评论按钮 (文本含"评论") ---');
+    var cbtns = document.querySelectorAll('.ContentItem-actions button, .Post-Sub button, [class*="QuestionButtonGroup"] button');
+    var cbShown = 0;
+    for (var cb = 0; cb < cbtns.length && cbShown < 10; cb++) {
+      if ((cbtns[cb].textContent || '').indexOf('评论') === -1) continue;
+      out.push(descNode(cbtns[cb], 0) + '  [已标记=' + cbtns[cb].classList.contains('tdoc-comment-btn') + ']');
+      cbShown++;
+    }
+    if (!cbShown) out.push('(无)');
 
     var text = out.join('\n');
     console.log(text);
@@ -1215,6 +1296,21 @@
     window.addEventListener('pageshow', function () {
       if (state.panic && !document.getElementById(PANIC_ID)) hidePanic();
     });
+    // fullscreen 下首按 Esc 被浏览器用于退出全屏(不派发可拦截的 keydown),
+    // 借 fullscreenchange 顺势收起覆盖层:用户视角"Esc 一下全恢复"
+    document.addEventListener('fullscreenchange', function () {
+      if (!document.fullscreenElement && state.panic && _panicFs) hidePanic();
+    });
+    // redirect 应急后回到原阅读页:清掉 popup"返回"按钮依赖的记录
+    try {
+      chrome.storage.local.get('tdoc_panic_return', function (r) {
+        try {
+          if (r && r.tdoc_panic_return === location.href && chrome.storage.local.remove) {
+            chrome.storage.local.remove('tdoc_panic_return');
+          }
+        } catch (e) {}
+      });
+    } catch (e) {}
     // document_start 与 DOMContentLoaded 之间 URL 可能已变(SPA 兜底)
     handleRouteChange();
     if (state.disguised) { updateToc(); updateStatus(); }
