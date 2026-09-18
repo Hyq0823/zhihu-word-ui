@@ -974,13 +974,14 @@ html.tdoc-disguised .LinkCard-title { font-size: 13px !important; color: #333 !i
    - 占位符用 CSS counter 编号,形如【图片 3 · 移入查看 / 点击固定】
    - 悬停显示原图;点击 figure 空白处固定/取消固定(触屏可用)
    - 点击已显示的原图不拦截 → 知乎原生 lightbox 照常工作
+   - figure:not(.tdoc-vidbox):视频外壳(见下方"正文视频")走视频占位系统,不重复编号
    ============================================================ */
 html.tdoc-disguised .RichText,
 html.tdoc-disguised .QuestionRichText,
-html.tdoc-disguised .Post-RichText { counter-reset: tdocfig; }
-html.tdoc-disguised .RichText figure,
-html.tdoc-disguised .QuestionRichText figure,
-html.tdoc-disguised .Post-RichText figure {
+html.tdoc-disguised .Post-RichText { counter-reset: tdocfig tdocvid; }
+html.tdoc-disguised .RichText figure:not(.tdoc-vidbox),
+html.tdoc-disguised .QuestionRichText figure:not(.tdoc-vidbox),
+html.tdoc-disguised .Post-RichText figure:not(.tdoc-vidbox) {
   counter-increment: tdocfig;
   position: relative;
   margin: 14px 0 !important;
@@ -988,12 +989,12 @@ html.tdoc-disguised .Post-RichText figure {
 html.tdoc-disguised .RichText figure noscript,
 html.tdoc-disguised .QuestionRichText figure noscript,
 html.tdoc-disguised .Post-RichText figure noscript { display: none !important; }
-html.tdoc-disguised .RichText figure img,
-html.tdoc-disguised .QuestionRichText figure img,
-html.tdoc-disguised .Post-RichText figure img { display: none !important; }
-html.tdoc-disguised .RichText figure::before,
-html.tdoc-disguised .QuestionRichText figure::before,
-html.tdoc-disguised .Post-RichText figure::before {
+html.tdoc-disguised .RichText figure:not(.tdoc-vidbox) img,
+html.tdoc-disguised .QuestionRichText figure:not(.tdoc-vidbox) img,
+html.tdoc-disguised .Post-RichText figure:not(.tdoc-vidbox) img { display: none !important; }
+html.tdoc-disguised .RichText figure:not(.tdoc-vidbox)::before,
+html.tdoc-disguised .QuestionRichText figure:not(.tdoc-vidbox)::before,
+html.tdoc-disguised .Post-RichText figure:not(.tdoc-vidbox)::before {
   content: "【图片 " counter(tdocfig) " · 移入查看 / 点击固定】";
   display: block;
   font: 12px/1.6 "宋体", "SimSun", serif !important;
@@ -1006,18 +1007,64 @@ html.tdoc-disguised .Post-RichText figure::before {
   margin: 0 !important;
   cursor: pointer;
 }
-html.tdoc-disguised .RichText figure:hover::before,
-html.tdoc-disguised .RichText figure.tdoc-img-pin::before,
-html.tdoc-disguised .QuestionRichText figure:hover::before,
-html.tdoc-disguised .QuestionRichText figure.tdoc-img-pin::before,
-html.tdoc-disguised .Post-RichText figure:hover::before,
-html.tdoc-disguised .Post-RichText figure.tdoc-img-pin::before { display: none !important; }
-html.tdoc-disguised .RichText figure:hover img,
-html.tdoc-disguised .RichText figure.tdoc-img-pin img,
-html.tdoc-disguised .QuestionRichText figure:hover img,
-html.tdoc-disguised .QuestionRichText figure.tdoc-img-pin img,
-html.tdoc-disguised .Post-RichText figure:hover img,
-html.tdoc-disguised .Post-RichText figure.tdoc-img-pin img { display: block !important; }
+html.tdoc-disguised .RichText figure:not(.tdoc-vidbox):hover::before,
+html.tdoc-disguised .RichText figure:not(.tdoc-vidbox).tdoc-img-pin::before,
+html.tdoc-disguised .QuestionRichText figure:not(.tdoc-vidbox):hover::before,
+html.tdoc-disguised .QuestionRichText figure:not(.tdoc-vidbox).tdoc-img-pin::before,
+html.tdoc-disguised .Post-RichText figure:not(.tdoc-vidbox):hover::before,
+html.tdoc-disguised .Post-RichText figure:not(.tdoc-vidbox).tdoc-img-pin::before { display: none !important; }
+html.tdoc-disguised .RichText figure:not(.tdoc-vidbox):hover img,
+html.tdoc-disguised .RichText figure:not(.tdoc-vidbox).tdoc-img-pin img,
+html.tdoc-disguised .QuestionRichText figure:not(.tdoc-vidbox):hover img,
+html.tdoc-disguised .QuestionRichText figure:not(.tdoc-vidbox).tdoc-img-pin img,
+html.tdoc-disguised .Post-RichText figure:not(.tdoc-vidbox):hover img,
+html.tdoc-disguised .Post-RichText figure:not(.tdoc-vidbox).tdoc-img-pin img { display: block !important; }
+
+/* ============================================================
+   正文视频:与图片同机制 —— 默认占位符,悬停预览,点击固定
+   - content.js tagVideoBoxes() 给 <video> 的最近外壳(VideoCard/figure/父级)
+     打 .tdoc-vidbox;知乎视频外壳类名随发版变化,JS 打标比纯 CSS 猜稳定
+   - 隐藏用 visibility+height(而非 display:none):保留子元素原有 display 值,
+     悬停/固定恢复时播放器内部布局(flex/absolute 控件)不被破坏
+   - 悬停/固定态露出原生播放器,播放控件不拦截
+   ============================================================ */
+html.tdoc-disguised .tdoc-vidbox {
+  counter-increment: tdocvid;
+  position: relative;
+  margin: 14px 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+html.tdoc-disguised .tdoc-vidbox > * {
+  visibility: hidden !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+html.tdoc-disguised .tdoc-vidbox::before {
+  content: "【视频 " counter(tdocvid) " · 移入查看 / 点击固定】";
+  display: block;
+  font: 12px/1.6 "宋体", "SimSun", serif !important;
+  color: #888 !important;
+  text-align: center !important;
+  background: #F7F7F7 !important;
+  border: 1px dashed #D9D9D9 !important;
+  border-radius: 3px;
+  padding: 10px 8px !important;
+  margin: 0 !important;
+  cursor: pointer;
+}
+html.tdoc-disguised .tdoc-vidbox:hover > *,
+html.tdoc-disguised .tdoc-vidbox.tdoc-img-pin > * {
+  visibility: visible !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+html.tdoc-disguised .tdoc-vidbox:hover::before,
+html.tdoc-disguised .tdoc-vidbox.tdoc-img-pin::before { display: none !important; }
 
 /* ============================================================
    详情模式:拍平知乎原生卡片外壳,避免"白卡套 A4 纸"双层嵌套
@@ -1427,6 +1474,71 @@ html.tdoc-disguised.tdoc-comments-on [class*="Comments"] img[class*="Emoji"] {
 }
 html.tdoc-disguised.tdoc-comments-on [class*="Comments"] img {
   display: block !important; max-width: 240px !important; margin: 6px 0 !important;
+}
+
+/* --------- 评论"回复"弹层(v0.8.2) ---------
+   知乎把回复弹层以 portal 挂 body 末尾:不在 Comments 容器内,拿不到批注样式;
+   且顶栏 z-index 顶格,居中的高弹层顶部被外壳裁掉。这里统一收编成
+   "批注回复卡片":定位到外壳下方、限高内部滚动、淡化遮罩。
+   类名以宽松匹配兜底(知乎发版后可用 __tdoc.diag() 的弹层段校准) */
+html.tdoc-disguised [class*="CommentPopup"],
+html.tdoc-disguised [class*="ReplyPopup"],
+html.tdoc-disguised [class*="CommentDialog"] {
+  position: fixed !important;
+  top: calc(var(--tdoc-chrome-h) + 24px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  right: auto !important; bottom: auto !important; margin: 0 !important;
+  width: min(620px, 92vw) !important;
+  max-height: calc(100vh - var(--tdoc-chrome-h) - 48px) !important;
+  overflow-y: auto !important;
+  background: #FFFFFF !important;
+  border: 1px solid #E0E0E0 !important; border-radius: 6px !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .12) !important;
+  color: #333 !important; font-size: 13px !important;
+}
+/* 遮罩减淡:深黑遮罩在文档语境里太"知乎" */
+html.tdoc-disguised .Dialog-mask { background: rgba(31, 31, 31, .22) !important; }
+/* 弹层头部(如"75条回复"):吸顶 + 细分隔线,像卡片标题栏 */
+html.tdoc-disguised [class*="CommentPopup"] [class*="header"],
+html.tdoc-disguised [class*="CommentPopup"] [class*="Header"],
+html.tdoc-disguised [class*="ReplyPopup"] [class*="header"],
+html.tdoc-disguised [class*="ReplyPopup"] [class*="Header"] {
+  position: sticky !important; top: 0 !important; z-index: 1;
+  background: #FFFFFF !important;
+  border-bottom: 1px solid #F0F0F0 !important;
+  font-size: 13px !important; font-weight: 600 !important; color: #333 !important;
+}
+/* 弹层内批注列表样式复用:回复条目透明底 + 虚线分隔,操作按钮灰小字 */
+html.tdoc-disguised [class*="CommentPopup"] [class*="CommentItem"],
+html.tdoc-disguised [class*="ReplyPopup"] [class*="CommentItem"] {
+  background: transparent !important;
+  border-bottom: 1px dashed #E0E0DC !important; padding: 8px 2px !important;
+}
+html.tdoc-disguised [class*="CommentPopup"] [class*="CommentItem"] a,
+html.tdoc-disguised [class*="ReplyPopup"] [class*="CommentItem"] a {
+  color: #1A73E8 !important; text-decoration: none !important;
+}
+html.tdoc-disguised [class*="CommentPopup"] [class*="Editor"],
+html.tdoc-disguised [class*="CommentPopup"] [class*="editor"],
+html.tdoc-disguised [class*="ReplyPopup"] [class*="Editor"],
+html.tdoc-disguised [class*="ReplyPopup"] [class*="editor"] {
+  background: #FBFBF9 !important; border: 1px solid #E7E7E4 !important;
+  border-radius: 3px !important; padding: 8px 10px !important;
+}
+html.tdoc-disguised [class*="CommentPopup"] textarea,
+html.tdoc-disguised [class*="CommentPopup"] [contenteditable="true"],
+html.tdoc-disguised [class*="ReplyPopup"] textarea,
+html.tdoc-disguised [class*="ReplyPopup"] [contenteditable="true"] {
+  background: transparent !important; border: none !important;
+  font-size: 13px !important; color: #333 !important;
+}
+html.tdoc-disguised [class*="CommentPopup"] img.Emoji,
+html.tdoc-disguised [class*="CommentPopup"] img[class*="Emoji"],
+html.tdoc-disguised [class*="ReplyPopup"] img.Emoji,
+html.tdoc-disguised [class*="ReplyPopup"] img[class*="Emoji"] {
+  display: inline !important; width: 20px !important; max-width: 20px !important;
+  margin: 0 1px !important; vertical-align: -4px !important;
 }
 
 /* ============================================================

@@ -13,6 +13,7 @@
  * - 自动伪装策略:detail/all/manual/off 四档,storage.sync 源 + LS 镜像首帧同步读
  * - FAB 伪装态隐匿:默认不可见,hover 右下角低透明度浮现
  * - 评论区开关:默认隐藏;popup 打开后评论入口/列表以"文档批注"样式显示(交互保持原生)
+ * - 正文视频屏蔽:与图片同机制(【视频 N】占位符,悬停预览/点击固定,露出原生播放器)
  * ============================================================ */
 (function () {
   'use strict';
@@ -388,15 +389,21 @@
     }
   }
 
-  // ========== 正文图片交互(与 content.css 配合) ==========
-  // CSS 侧:图片默认显示【图片 N】占位符,悬停预览原图;
-  // JS 侧补"点击固定":点 figure 自身(占位区)切换 tdoc-img-pin,供触屏/需要持续看图的场景;
-  // 点原图 IMG / 链接 / lightbox 一律放行,保持知乎原生行为不被拦截。
+  // ========== 正文图片/视频交互(与 content.css 配合) ==========
+  // CSS 侧:图片/视频默认显示【图片 N】/【视频 N】占位符,悬停预览原内容;
+  // JS 侧补"点击固定":点外壳自身(占位区)切换 tdoc-img-pin,供触屏/需要持续看图看视频的场景;
+  // 点原图 IMG / 视频播放器内部 / 链接 / lightbox 一律放行,保持知乎原生行为不被拦截。
   function setupImagePin() {
     document.addEventListener('click', function (e) {
       if (!state.disguised) return;
       var t = e.target;
       if (!t || !t.closest || t.tagName === 'IMG') return; // 原图/lightbox/链接不拦截
+      // 视频外壳:点空白处(含占位条)固定/取消;播放器内部点击放行(visibility 恢复后控件可点)
+      var vbox = t.closest('.tdoc-vidbox');
+      if (vbox) {
+        if (t === vbox) vbox.classList.toggle('tdoc-img-pin');
+        return;
+      }
       var fig = (t.closest && t.closest('.RichText figure, .QuestionRichText figure, .Post-RichText figure'));
       if (fig && t === fig) fig.classList.toggle('tdoc-img-pin');
     });
@@ -494,6 +501,23 @@
         while (slot.parentElement && slot.parentElement !== bar) slot = slot.parentElement;
         if (slot !== btn) slot.classList.add('tdoc-comment-slot');
       }
+    }
+  }
+
+  // ========== 视频外壳标记(配合 .tdoc-vidbox 占位样式,v0.8) ==========
+  // 知乎视频外壳类名(VideoCard/Player/figure…)随发版变化,纯 CSS 猜不稳;
+  // 这里以 <video> 元素为锚点,向上找最近外壳打 .tdoc-vidbox:
+  // VideoCard 壳优先 → 否则 figure → 否则直接父级。CSS 据此隐藏播放器并显示占位符。
+  // 只加 class 不改结构(不包 wrapper,避免干扰 React 协调);重渲染掉标后由防抖观察器补打。
+  function tagVideoBoxes() {
+    if (!state.disguised) return;
+    var vids = document.querySelectorAll(
+      '.RichText video, .QuestionRichText video, .Post-RichText video, [class*="VideoAnswer"] video'
+    );
+    for (var i = 0; i < vids.length; i++) {
+      var v = vids[i];
+      var box = v.closest('[class*="VideoCard"]') || v.closest('figure') || v.parentElement;
+      if (box) box.classList.add('tdoc-vidbox');
     }
   }
 
@@ -625,6 +649,7 @@
           updateToc();
           updateStatus();
           tagCommentButtons(); // React 重渲染会冲掉标记,随防抖统一补打
+          tagVideoBoxes();
         }
       }, 300);
     });
@@ -668,6 +693,7 @@
     updateToc();
     updateStatus();
     tagCommentButtons(); // 评论区开启时补打入口标记(关闭态内部直接 return)
+    tagVideoBoxes();     // 视频外壳标记(供 .tdoc-vidbox 占位样式)
     startFilenameWatch();
     notifyState();
   }
@@ -1086,6 +1112,7 @@
         updateToc();
         updateStatus();
         tagCommentButtons(); // 新页面的操作栏需要重新标记评论入口
+        tagVideoBoxes();     // 新页面的视频外壳重新标记
       }
     } else if (state.disguised) {
       // 详情页 → feed 且开关为 off:恢复知乎原生浏览
@@ -1229,6 +1256,19 @@
       cbShown++;
     }
     if (!cbShown) out.push('(无)');
+    out.push('');
+
+    // 回复弹层为 body 末尾 portal,样式类名靠宽松匹配 —— 没猜中时靠这段 dump 校准
+    out.push('--- 可见弹层 (Popup/Dialog portal;请先点开某条评论的"回复"再跑 diag) ---');
+    var pops = document.querySelectorAll('[class*="Popup"], [class*="Dialog"]');
+    var pShown = 0;
+    for (var pi = 0; pi < pops.length && pShown < 8; pi++) {
+      var ps = getComputedStyle(pops[pi]);
+      if (ps.display === 'none' || ps.visibility === 'hidden') continue;
+      out.push(descNode(pops[pi], 0) + '  [pos=' + ps.position + ' z=' + ps.zIndex + ' top=' + ps.top + ']');
+      pShown++;
+    }
+    if (!pShown) out.push('(无可见弹层——点开"回复"后再跑一次)');
 
     var text = out.join('\n');
     console.log(text);
