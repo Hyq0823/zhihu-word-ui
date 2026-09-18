@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>知乎摸鱼助手</title>
+<style>
+  body { width: 272px; max-height: 580px; overflow-y: auto; padding: 14px 16px; margin: 0; font-family: -apple-system, "PingFang SC", sans-serif; background: #fff; color: #333; }
+  .brand { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid #E0E0E0; margin-bottom: 10px; }
+  .brand-logo { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+  .brand-logo img { width: 28px; height: 28px; border-radius: 6px; }
+  .brand-name { font-size: 14px; font-weight: 600; flex: 1; }
+  .brand-tag { font-size: 11px; color: #999; }
+
+  .status-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+  .status-row .label { color: #666; }
+  .status-row .val { font-weight: 600; }
+  .status-row .val.on { color: #1A73E8; }
+
+  .btn { display: block; width: 100%; padding: 10px 12px; margin-top: 8px; border: 1px solid #D0D0D0; border-radius: 6px; background: #fff; color: #333; font-size: 13px; font-family: inherit; cursor: pointer; text-align: left; transition: all .15s; }
+  .btn:hover { border-color: #1A73E8; background: #F0F6FF; }
+  .btn.btn-primary { background: #1A73E8; color: #fff; border-color: #1A73E8; }
+  .btn.btn-primary:hover { background: #1765CC; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .sec { margin-top: 12px; padding-top: 10px; border-top: 1px solid #F0F0F0; }
+  .sec-title { font-size: 11px; color: #999; margin-bottom: 6px; letter-spacing: .5px; }
+  .fld { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 13px; }
+  .fld .label { color: #666; flex-shrink: 0; }
+  .fld select { flex: 1; max-width: 158px; font-size: 12px; padding: 3px 6px; border: 1px solid #D0D0D0; border-radius: 4px; background: #fff; color: #333; font-family: inherit; cursor: pointer; }
+  .fld input[type="text"] { flex: 1; max-width: 158px; font-size: 12px; padding: 4px 6px; border: 1px solid #D0D0D0; border-radius: 4px; color: #333; font-family: inherit; box-sizing: border-box; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #555; padding: 5px 0 2px; cursor: pointer; user-select: none; }
+  .hide { display: none !important; }
+
+  .tip { margin-top: 12px; padding: 10px 12px; background: #F8F9FA; border-radius: 4px; font-size: 11px; color: #666; line-height: 1.7; }
+  .tip b { color: #C0392B; }
+  .tip kbd { background: #fff; border: 1px solid #D0D0D0; border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; font-size: 10px; font-family: inherit; }
+</style>
+</head>
+<body>
+
+  <div class="brand">
+    <div class="brand-logo"><img src="icons/icon32.png" alt=""></div>
+    <div class="brand-name">知乎摸鱼助手</div>
+    <div class="brand-tag" id="page-tag">—</div>
+  </div>
+
+  <div class="status-row">
+    <span class="label">当前状态</span>
+    <span class="val" id="status-val">检测中...</span>
+  </div>
+  <div class="status-row">
+    <span class="label">伪装模式</span>
+    <span class="val" id="mode-val">—</span>
+  </div>
+
+  <button class="btn btn-primary" id="btn-toggle">📄 开启文档伪装</button>
+
+  <div class="sec">
+    <div class="sec-title">伪装设置</div>
+    <div class="fld">
+      <span class="label">自动伪装</span>
+      <select id="strategy-sel">
+        <option value="detail">详情页自动</option>
+        <option value="all">全站自动</option>
+        <option value="manual">完全手动</option>
+        <option value="off">停用</option>
+      </select>
+    </div>
+    <div class="fld">
+      <span class="label">切换快捷键</span>
+      <select id="hotkey-sel">
+        <option value="dbl-space">双击空格</option>
+        <option value="alt-q">Alt + Q</option>
+        <option value="ctrl-alt-d">Ctrl + Alt + D</option>
+        <option value="off">关闭快捷键</option>
+      </select>
+    </div>
+    <label class="chk"><input type="checkbox" id="fab-chk"> 伪装时显示悬浮按钮</label>
+  </div>
+
+  <div class="sec">
+    <div class="sec-title">老板键 · 应急</div>
+    <div class="fld">
+      <span class="label">触发方式</span>
+      <select id="panic-key-sel">
+        <option value="dbl-esc">双击 Esc</option>
+        <option value="off">关闭老板键</option>
+      </select>
+    </div>
+    <div class="fld">
+      <span class="label">覆盖画面</span>
+      <select id="panic-mode-sel">
+        <option value="terminal">假终端(构建日志)</option>
+        <option value="sheet">假表格(销售报表)</option>
+        <option value="redirect">跳转工作页</option>
+      </select>
+    </div>
+    <div class="fld hide" id="panic-url-row">
+      <span class="label">跳转地址</span>
+      <input type="text" id="panic-url-input" placeholder="https://..." spellcheck="false">
+    </div>
+  </div>
+
+  <div class="tip">
+    <b>提示</b>:伪装时 tab 标题和图标同步变为腾讯文档,历史记录不留知乎痕迹。
+    老板键 <kbd>Esc</kbd><kbd>Esc</kbd> 双击全屏盖上"无害画面",再双击恢复,页面原样不动。
+    伪装态悬浮按钮默认隐匿,鼠标移到右下角可唤出。
+  </div>
+
+<script src="popup.js"></script>
+</body>
+</html>

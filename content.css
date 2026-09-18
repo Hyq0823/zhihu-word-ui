@@ -1,0 +1,1358 @@
+/* ============================================================
+ * 文档阅读模式 v0.8 —— 分页面类型精准处理
+ * 伪装状态 class 挂在 <html> 上(document_start 即可加,早于 body 存在)
+ * v0.8 新增:FAB 伪装态隐匿、老板键覆盖层(假终端/假表格)——见文件末尾
+ * ============================================================ */
+
+/* ===== 全局变量 ===== */
+:root {
+  /* 顶栏实际高度: 48(topbar)+1 + 36(tabs)+1 + 44(toolbar)+1 = 131px */
+  --tdoc-chrome-h: 131px;
+  /* A4 纸张宽度(加宽,内容区不再过窄) */
+  --tdoc-paper-w: 920px;
+  /* 侧栏宽度 */
+  --tdoc-side-l: 232px;
+  --tdoc-side-r: 304px;
+  --tdoc-status-h: 28px;
+}
+
+/* ===== 伪装开启时的入场过渡(弱化内容切换的跳变感) ===== */
+@keyframes tdoc-fadein {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+html.tdoc-disguised body {
+  animation: tdoc-fadein 0.12s ease-out;
+}
+
+/* ===== 固定表头 ===== */
+#__tdoc_chrome__ {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 2147483647;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  user-select: none;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+#__tdoc_chrome__ .tdoc-chrome-topbar {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid #ECECEC;
+  background: #fff;
+}
+#__tdoc_chrome__ .tdoc-chrome-brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+#__tdoc_chrome__ .tdoc-chrome-logo {
+  width: 24px; height: 24px;
+  background: #1A73E8;
+  color: #fff;
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700;
+  font-family: Georgia, serif;
+}
+#__tdoc_chrome__ .tdoc-chrome-name { font-size: 14px; color: #333; font-weight: 500; }
+#__tdoc_chrome__ .tdoc-chrome-filename {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  padding: 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#__tdoc_chrome__ .tdoc-chrome-perm {
+  font-size: 12px; color: #999; background: #F5F5F5;
+  padding: 2px 8px; border-radius: 3px; flex-shrink: 0;
+}
+#__tdoc_chrome__ .tdoc-chrome-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+#__tdoc_chrome__ .tdoc-chrome-btn {
+  width: 32px; height: 28px; border: none; background: transparent;
+  border-radius: 4px; cursor: pointer; font-size: 14px; color: #555;
+}
+#__tdoc_chrome__ .tdoc-chrome-btn:hover { background: #F0F0F0; }
+#__tdoc_chrome__ .tdoc-chrome-btn-primary {
+  height: 28px; padding: 0 14px; border: none; background: #1A73E8;
+  color: #fff; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;
+}
+#__tdoc_chrome__ .tdoc-chrome-btn-primary:hover { background: #1565C0; }
+#__tdoc_chrome__ .tdoc-chrome-tabs {
+  height: 36px; display: flex; align-items: flex-end; padding: 0 16px;
+  border-bottom: 1px solid #ECECEC; background: #fff;
+}
+#__tdoc_chrome__ .tdoc-chrome-tab {
+  height: 32px; padding: 0 16px; font-size: 13px; color: #666;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  display: flex; align-items: center; transition: color .15s, border-color .15s;
+}
+#__tdoc_chrome__ .tdoc-chrome-tab:hover { color: #1A73E8; }
+#__tdoc_chrome__ .tdoc-chrome-tab.active { color: #1A73E8; border-bottom-color: #1A73E8; font-weight: 500; }
+#__tdoc_chrome__ .tdoc-chrome-toolbar {
+  height: 44px; display: flex; align-items: center; padding: 0 16px;
+  gap: 4px; background: #fff; border-bottom: 1px solid #F0F0F0;
+  overflow-x: auto; flex-shrink: 0;
+}
+#__tdoc_chrome__ .tdoc-chrome-tb-group {
+  display: flex; align-items: center; gap: 2px; padding-right: 10px;
+  margin-right: 6px; border-right: 1px solid #ECECEC; flex-shrink: 0;
+}
+#__tdoc_chrome__ .tdoc-chrome-tb-group:last-child { border-right: none; margin-right: 0; padding-right: 0; }
+#__tdoc_chrome__ .tdoc-chrome-tb-btn {
+  width: 28px; height: 28px; border: none; background: transparent;
+  border-radius: 3px; cursor: pointer; font-size: 13px; color: #555;
+  display: flex; align-items: center; justify-content: center;
+}
+#__tdoc_chrome__ .tdoc-chrome-tb-btn:hover { background: #F0F0F0; }
+#__tdoc_chrome__ .tdoc-chrome-select {
+  height: 26px; padding: 0 20px 0 6px; border: 1px solid #E0E0E0;
+  border-radius: 3px; background: #fff; font-size: 12px; color: #555;
+  -webkit-appearance: none; appearance: none; cursor: pointer;
+}
+
+/* ===== 固定表头占位 ===== */
+html.tdoc-disguised body {
+  padding-top: var(--tdoc-chrome-h) !important;
+  padding-bottom: var(--tdoc-status-h) !important;
+}
+/* 宽屏:正文列让出左右侧栏空间(仅详情模式) */
+@media (min-width: 1200px) {
+  html.tdoc-mode-article body,
+  html.tdoc-mode-question body,
+  html.tdoc-mode-answer body {
+    padding-left: calc(var(--tdoc-side-l) + 8px) !important;
+    padding-right: calc(var(--tdoc-side-r) + 8px) !important;
+  }
+  html.tdoc-disguised #__tdoc_fab__ { right: calc(var(--tdoc-side-r) + 12px); }
+}
+/* 锚点跳转避开固定顶栏 */
+html.tdoc-disguised h1,
+html.tdoc-disguised h2,
+html.tdoc-disguised h3,
+html.tdoc-disguised h4 { scroll-margin-top: calc(var(--tdoc-chrome-h) + 20px); }
+
+/* ===== FAB ===== */
+#__tdoc_fab__ {
+  position: fixed; right: 20px; bottom: 20px;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: #1A73E8; color: #fff; border: none;
+  box-shadow: 0 4px 12px rgba(26,115,232,0.35);
+  cursor: pointer; z-index: 2147483645;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; opacity: 0.75;
+  transition: transform .15s, opacity .15s;
+}
+#__tdoc_fab__:hover { transform: scale(1.06); opacity: 1; }
+/* 伪装态:默认隐匿(腾讯文档里没有悬浮按钮,常显反而是破绽);
+   hover 到右下角时以 20% 透明度浮现,仍可点击切回原生 */
+html.tdoc-disguised #__tdoc_fab__ { background: #34A853; opacity: 0; bottom: 40px; }
+html.tdoc-disguised #__tdoc_fab__:hover { opacity: 0.2; transform: none; }
+/* popup 勾选「伪装时显示悬浮按钮」→ html 加 tdoc-fab-on,恢复常显 */
+html.tdoc-disguised.tdoc-fab-on #__tdoc_fab__ { opacity: 0.5; }
+html.tdoc-disguised.tdoc-fab-on #__tdoc_fab__:hover { opacity: 1; }
+
+/* ============================================================
+   通用:隐藏知乎原生干扰元素 (所有模式共享)
+   选择器基于真实 DOM dump (2026-09 知乎新版 heifetz)
+   ============================================================ */
+html.tdoc-disguised .AppHeader,
+html.tdoc-disguised [class*="AppHeader"],
+/* 左侧全局导航 */
+html.tdoc-disguised [class*="GlobalSideBar"],
+html.tdoc-disguised [class*="SideNav"],
+/* 右侧栏:热搜/推荐关注(注意:.ListShortcut 包裹推荐流,不能隐藏) */
+html.tdoc-disguised .HotSearchCard,
+html.tdoc-disguised [class*="Question-sideColumn"],
+html.tdoc-disguised [class*="Post-Sidebar"],
+/* 广告:顶部 banner / 信息流广告 / 推广卡片 / 知+ / 会员推荐
+   [class*="advert" i] 大小写不敏感,覆盖 AdvertImg / advertCard / advertisement 等 */
+html.tdoc-disguised [class*="advert" i],
+html.tdoc-disguised [class*="feedAd" i],
+html.tdoc-disguised [class*="Banner-adTag" i],
+html.tdoc-disguised [class*="Business-Card"],
+html.tdoc-disguised [class*="Pc-card"],
+html.tdoc-disguised [class*="VipRecommend"],
+html.tdoc-disguised [class*="TopstoryItem--advertCard"],
+html.tdoc-disguised .Banner-image,
+html.tdoc-disguised .Banner-link,
+html.tdoc-disguised [class*="Intervene"],
+/* 首页发帖区 + 创作入口 */
+html.tdoc-disguised .WriteArea,
+html.tdoc-disguised [class*="CreatorEntrance"],
+html.tdoc-disguised [class*="CreateSaltCard"],
+/* 右下角"砍扇"/动画角标 */
+html.tdoc-disguised [class*="CornerAnimayedFlex"],
+html.tdoc-disguised [class*="CornerButton"],
+html.tdoc-disguised [class*="KanshanCornerButton"],
+/* 轮播 */
+html.tdoc-disguised .Carousel,
+/* 卡片操作栏:赞同/评论/分享/更多(容器本身在下方"收起/展开"专区单独处理) */
+html.tdoc-disguised .ContentItem-action,
+html.tdoc-disguised .ContentItem-more,
+html.tdoc-disguised .ContentItem-arrowIcon,
+html.tdoc-disguised .VoteButton,
+html.tdoc-disguised .Post-ActionMenuButton,
+html.tdoc-disguised .ShareMenu,
+html.tdoc-disguised .OptionsButton,
+html.tdoc-disguised [class*="Post-Actions"],
+html.tdoc-disguised [class*="Reward"],
+/* 关注按钮 */
+html.tdoc-disguised .FollowButton,
+html.tdoc-disguised [class*="Post-Follow"],
+html.tdoc-disguised [class*="QuestionFollow"],
+/* 评论区 */
+html.tdoc-disguised [class*="Comments"],
+/* 页脚 */
+html.tdoc-disguised [class*="Footer"],
+html.tdoc-disguised [class*="AboutFooter"],
+html.tdoc-disguised [class*="HelpCenter"],
+html.tdoc-disguised [class*="ReportCenter"],
+/* 面包屑/标签/话题 */
+html.tdoc-disguised [class*="Breadcrumb"],
+html.tdoc-disguised [class*="Post-Nav"],
+html.tdoc-disguised [class*="TopicLink"],
+html.tdoc-disguised [class*="TopicTag"],
+html.tdoc-disguised [class*="ContentItem-tag"],
+html.tdoc-disguised [class*="Question-tags"],
+html.tdoc-disguised [class*="QuestionTag"],
+html.tdoc-disguised [class*="ContentItem-badge"],
+html.tdoc-disguised [class*="AuthorInfo-badge"],
+/* 复制按钮(展开类控件不在此隐藏,见下方"内容展开"专区,避免阻断阅读全文) */
+html.tdoc-disguised [class*="RichText-More"],
+html.tdoc-disguised [class*="RichText-Copy"],
+/* 问题页杂项 */
+html.tdoc-disguised [class*="QuestionAuthor"],
+html.tdoc-disguised [class*="Post-Sub"],
+html.tdoc-disguised [class*="Post-Reward"],
+html.tdoc-disguised [class*="Post-SubExtra"],
+html.tdoc-disguised [class*="Post-AuthorInfo-Extra"],
+/* profile 页:屏蔽/举报等 */
+html.tdoc-disguised [class*="BlockUser"],
+html.tdoc-disguised [class*="ReportUser"],
+html.tdoc-disguised [class*="UserActions"],
+html.tdoc-disguised [class*="ProfileActions"],
+html.tdoc-disguised [class*="ActionMenu"],
+html.tdoc-disguised [class*="MoreActions"],
+html.tdoc-disguised [class*="Message"],
+html.tdoc-disguised [class*="ChatButton"],
+/* 作者卡片/侧栏卡片(详情页右侧) */
+html.tdoc-disguised [class*="AuthorCard"],
+html.tdoc-disguised [class*="ProfileCard"],
+html.tdoc-disguised [class*="Reach"],
+html.tdoc-disguised [class*="HotList"],
+html.tdoc-disguised [class*="EveryoneSearch"],
+html.tdoc-disguised [class*="Promotion"] { display: none !important; }
+
+/* ============================================================
+   共享正文样式:所有详情页的 .RichText 内部元素统一
+   ============================================================ */
+html.tdoc-disguised .RichText p,
+html.tdoc-disguised .Post-RichText p,
+html.tdoc-disguised .QuestionRichText p {
+  text-indent: 2em !important;
+  font: 16px/1.8 "宋体", "SimSun", serif !important;
+  margin: 0 0 14px !important;
+  color: #333 !important;
+}
+html.tdoc-disguised .RichText h2,
+html.tdoc-disguised h2 {
+  font: 600 20px/1.5 "微软雅黑", sans-serif !important;
+  color: #333 !important; margin: 28px 0 14px !important;
+}
+html.tdoc-disguised .RichText h3,
+html.tdoc-disguised h3 {
+  font: 600 16px/1.5 "微软雅黑", sans-serif !important;
+  color: #333 !important; margin: 22px 0 12px !important;
+}
+html.tdoc-disguised blockquote {
+  border-left: 3px solid #1A73E8 !important;
+  background: #F8FAFD !important;
+  padding: 10px 14px !important;
+  margin: 14px 0 !important;
+  font: 14px/1.6 "宋体", serif !important;
+  color: #666 !important;
+}
+html.tdoc-disguised pre,
+html.tdoc-disguised [class*="CodeBlock"] {
+  background: #F5F5F5 !important;
+  padding: 14px !important;
+  font: 13px/1.5 Consolas, monospace !important;
+  white-space: pre-wrap !important;
+  margin: 14px 0 !important;
+  border-radius: 4px !important;
+  border: 1px solid #E0E0E0 !important;
+}
+html.tdoc-disguised ul { padding-left: 1.5em !important; list-style: disc inside !important; }
+html.tdoc-disguised ol { padding-left: 1.5em !important; list-style: decimal inside !important; }
+html.tdoc-disguised ul, html.tdoc-disguised ol {
+  font: 16px/1.8 "宋体", serif !important; margin: 14px 0 !important;
+}
+html.tdoc-disguised img {
+  display: block !important; max-width: 100% !important; margin: 14px auto !important;
+}
+html.tdoc-disguised a { color: #1A73E8 !important; text-decoration: none !important; }
+html.tdoc-disguised a:hover { text-decoration: underline !important; }
+html.tdoc-disguised table {
+  border-collapse: collapse !important; width: 100% !important;
+  margin: 14px 0 !important; font: 14px/1.6 "宋体", serif !important;
+}
+html.tdoc-disguised th, html.tdoc-disguised td {
+  border: 1px solid #E0E0E0 !important; padding: 8px 10px !important; text-align: left !important;
+}
+html.tdoc-disguised th { background: #F5F5F5 !important; font-weight: 600 !important; }
+
+/* ============================================================
+   内容展开(阅读全文):不阻断知乎原生交互
+   - 只重样式化 button 型展开控件,不动非 button 容器(避免布局错乱)
+   - 列表模式:内容本就单行截断,隐藏展开控件与遮罩
+   ============================================================ */
+html.tdoc-disguised button[class*="ShowAll"],
+html.tdoc-disguised button[class*="Expand"] { display: none !important; }
+
+/* --- 操作栏只保留"收起/展开"(原生同一按钮自切换文字) --- */
+html.tdoc-mode-list .ContentItem-actions { display: none !important; }
+html.tdoc-disguised .ContentItem-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 6px 0 0 !important;
+}
+html.tdoc-disguised .ContentItem-actions > *:not(.ContentItem-rightButton) { display: none !important; }
+html.tdoc-disguised .ContentItem-rightButton {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  font-size: 12px !important;
+  color: #888 !important;
+  cursor: pointer !important;
+}
+html.tdoc-disguised .ContentItem-rightButton:hover { color: #1A73E8 !important; }
+/* 折叠渐变遮罩:详情模式改为纯白渐隐(与 A4 纸背景一致),不隐藏 */
+html.tdoc-mode-article [class*="RichText-Mask"],
+html.tdoc-mode-question [class*="RichText-Mask"],
+html.tdoc-mode-answer [class*="RichText-Mask"],
+html.tdoc-mode-profile [class*="RichText-Mask"] {
+  background: linear-gradient(180deg, rgba(255,255,255,0), #fff) !important;
+}
+/* 列表模式:单行截断,无需展开 */
+html.tdoc-mode-list [class*="ShowAll"],
+html.tdoc-mode-list [class*="Expand"],
+html.tdoc-mode-list [class*="RichText-Mask"] { display: none !important; }
+
+/* 详情页:隐藏头像(正文内图片保留) */
+html.tdoc-mode-article .Avatar,
+html.tdoc-mode-article .AuthorInfo-avatar,
+html.tdoc-mode-question .Avatar,
+html.tdoc-mode-question .AuthorInfo-avatar,
+html.tdoc-mode-answer .Avatar,
+html.tdoc-mode-answer .AuthorInfo-avatar { display: none !important; }
+
+/* ============================================================
+   MODE 1: ARTICLE (zhuanlan.zhihu.com/p/xxx)
+   专栏文章:单篇 A4 纸
+   ============================================================ */
+html.tdoc-mode-article,
+html.tdoc-mode-article body { background: #F0F0F0 !important; }
+
+html.tdoc-mode-article #root,
+html.tdoc-mode-article [class*="Container"],
+html.tdoc-mode-article [class*="ColumnPage"],
+html.tdoc-mode-article main {
+  max-width: var(--tdoc-paper-w) !important; margin: 0 auto !important; padding: 0 !important; display: block !important;
+}
+
+/* 只有 .Post-RichTextContainer 套 A4 纸,不要套到别的元素上 */
+html.tdoc-mode-article .Post-RichTextContainer,
+html.tdoc-mode-article .Post-RichText {
+  background: #fff !important;
+  padding: 64px 80px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.06) !important;
+  min-height: 1123px !important;
+  margin: 20px auto !important;
+  max-width: var(--tdoc-paper-w) !important;
+  font-family: "宋体", "SimSun", serif !important;
+}
+
+/* 文章标题 */
+html.tdoc-mode-article .Post-Title,
+html.tdoc-mode-article .ContentItem-title {
+  text-align: center !important;
+  font: 600 28px/1.5 "微软雅黑", sans-serif !important;
+  margin: 0 0 16px !important;
+  border: none !important; padding: 0 !important;
+}
+
+/* 作者时间 */
+html.tdoc-mode-article .AuthorInfo,
+html.tdoc-mode-article .ContentItem-time {
+  text-align: center !important; font-size: 12px !important;
+  color: #999 !important; border: none !important; padding: 0 !important; margin-bottom: 24px !important;
+}
+
+/* ============================================================
+   MODE 2: QUESTION (zhihu.com/question/xxx)
+   问题页:问题标题 + 问题描述(一张纸) + 每个回答一张纸
+   ============================================================ */
+html.tdoc-mode-question,
+html.tdoc-mode-question body { background: #F0F0F0 !important; }
+
+html.tdoc-mode-question #root,
+html.tdoc-mode-question [class*="Container"],
+html.tdoc-mode-question [class*="ColumnPage"],
+html.tdoc-mode-question main {
+  max-width: var(--tdoc-paper-w) !important; margin: 0 auto !important; padding: 0 !important; display: block !important;
+}
+
+/* 问题标题区:紧凑文档抬头,不做 hero 式大卡(降低视觉存在感) */
+html.tdoc-mode-question .QuestionHeader {
+  background: #fff !important;
+  padding: 22px 80px 16px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.06) !important;
+  margin: 16px auto 0 !important;
+  max-width: var(--tdoc-paper-w) !important;
+}
+
+html.tdoc-mode-question .QuestionHeader-title {
+  text-align: center !important;
+  font: 600 18px/1.6 "微软雅黑", sans-serif !important;
+  margin: 0 !important;
+  border: none !important; padding: 0 !important;
+  color: #444 !important;
+}
+
+/* 问题描述:降级为小号灰字,不抢正文 */
+html.tdoc-mode-question .QuestionRichText {
+  background: #fff !important;
+  padding: 6px 80px 22px !important;
+  max-width: var(--tdoc-paper-w) !important;
+  margin: 0 auto !important;
+  font-family: "宋体", "SimSun", serif !important;
+}
+html.tdoc-mode-question .QuestionRichText p {
+  font-size: 13px !important;
+  color: #666 !important;
+  text-indent: 0 !important;
+  margin: 0 0 6px !important;
+}
+
+/* 回答列表容器 */
+html.tdoc-mode-question [class*="List"],
+html.tdoc-mode-question [class*="AnswerList"] {
+  max-width: var(--tdoc-paper-w) !important; margin: 0 auto !important; padding: 0 !important;
+}
+
+/* 每个回答:独立 A4 纸
+   [class~=] 精确匹配 AnswerItem 完整类名,避免命中 AnswerItem-authorInfo 等子元素 */
+html.tdoc-mode-question .AnswerCard,
+html.tdoc-mode-question [class~="AnswerItem"] {
+  background: #fff !important;
+  padding: 40px 80px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.06) !important;
+  margin: 20px auto !important;
+  max-width: var(--tdoc-paper-w) !important;
+  font-family: "宋体", "SimSun", serif !important;
+  border-radius: 0 !important;
+}
+
+/* 回答作者 */
+html.tdoc-mode-question .AuthorInfo,
+html.tdoc-mode-question [class*="AnswerItem-authorInfo"] {
+  text-align: center !important; font-size: 12px !important;
+  color: #999 !important; border: none !important; padding: 0 !important; margin-bottom: 16px !important;
+}
+
+/* ============================================================
+   MODE 3: ANSWER (zhihu.com/question/xxx/answer/xxx)
+   单回答页:和 article 类似,一张纸
+   ============================================================ */
+html.tdoc-mode-answer,
+html.tdoc-mode-answer body { background: #F0F0F0 !important; }
+
+html.tdoc-mode-answer #root,
+html.tdoc-mode-answer [class*="Container"],
+html.tdoc-mode-answer [class*="ColumnPage"],
+html.tdoc-mode-answer main {
+  max-width: var(--tdoc-paper-w) !important; margin: 0 auto !important; padding: 0 !important; display: block !important;
+}
+
+html.tdoc-mode-answer .QuestionHeader {
+  background: #fff !important;
+  padding: 22px 80px 16px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.06) !important;
+  margin: 16px auto 0 !important;
+  max-width: var(--tdoc-paper-w) !important;
+}
+
+html.tdoc-mode-answer .QuestionHeader-title {
+  text-align: center !important;
+  font: 600 18px/1.6 "微软雅黑", sans-serif !important;
+  margin: 0 !important;
+  border: none !important; padding: 0 !important;
+  color: #444 !important;
+}
+html.tdoc-mode-answer .QuestionRichText p {
+  font-size: 13px !important;
+  color: #666 !important;
+  text-indent: 0 !important;
+  margin: 0 0 6px !important;
+}
+
+html.tdoc-mode-answer .AnswerCard,
+html.tdoc-mode-answer [class~="AnswerItem"] {
+  background: #fff !important;
+  padding: 40px 80px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.06) !important;
+  margin: 20px auto !important;
+  max-width: var(--tdoc-paper-w) !important;
+  font-family: "宋体", "SimSun", serif !important;
+}
+
+html.tdoc-mode-answer .AuthorInfo,
+html.tdoc-mode-answer [class*="AnswerItem-authorInfo"] {
+  text-align: center !important; font-size: 12px !important;
+  color: #999 !important; border: none !important; padding: 0 !important; margin-bottom: 16px !important;
+}
+
+/* ============================================================
+   MODE 4: LIST (首页/feed)
+   Word 目录列表风 — 基于真实 DOM:
+   .Topstory-container > .Topstory-mainColumn > .Topstory-mainColumnCard
+   > #TopstoryContent > .ListShortcut > .Topstory-recommend
+   > .Card.TopstoryItem > .Feed > .AnswerItem/.ArticleItem
+   ============================================================ */
+html.tdoc-mode-list,
+html.tdoc-mode-list body { background: #F3F3F3 !important; }
+
+/* --- 屏蔽所有图片/视频/封面/头像/图标 --- */
+html.tdoc-mode-list img,
+html.tdoc-mode-list video,
+html.tdoc-mode-list .Avatar,
+html.tdoc-mode-list .AuthorInfo-avatar,
+html.tdoc-mode-list .RichContent-cover,
+html.tdoc-mode-list [class*="RichContent-cover"],
+html.tdoc-mode-list [class*="ContentItem-thumb"],
+html.tdoc-mode-list [class*="ContentItem-image"],
+html.tdoc-mode-list [class*="Icon"],
+html.tdoc-mode-list [class*="ZDI"] { display: none !important; }
+
+/* --- 布局:收窄为 720px 白色文档栏,居中 --- */
+html.tdoc-mode-list .App-main { padding: 0 !important; }
+html.tdoc-mode-list .Topstory-container {
+  display: block !important;
+  max-width: 720px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+}
+html.tdoc-mode-list .Topstory-mainColumn {
+  width: 100% !important;
+  max-width: 720px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.tdoc-mode-list .Topstory-mainColumnCard,
+html.tdoc-mode-list #TopstoryContent,
+html.tdoc-mode-list .Topstory-content {
+  width: 100% !important;
+  max-width: 720px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+html.tdoc-mode-list .ListShortcut,
+html.tdoc-mode-list .Topstory-recommend {
+  background: #fff !important;
+  padding: 4px 28px 24px !important;
+  margin: 0 !important;
+  min-height: 100vh !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+
+/* --- 每条 TopstoryItem:去卡片化,变成目录行 --- */
+html.tdoc-mode-list .TopstoryItem {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-bottom: 1px dotted #D8D8D8 !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.tdoc-mode-list .Feed {
+  padding: 6px 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+html.tdoc-mode-list .AnswerItem,
+html.tdoc-mode-list .ArticleItem {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* --- 标题 --- */
+html.tdoc-mode-list .ContentItem-title {
+  font: 500 14px/1.35 "微软雅黑", "Microsoft YaHei", sans-serif !important;
+  color: #222 !important;
+  margin: 0 0 1px !important;
+  padding: 0 !important;
+  border: none !important;
+}
+html.tdoc-mode-list .ContentItem-title a { color: #222 !important; text-decoration: none !important; }
+html.tdoc-mode-list .Post-Title {
+  font: 500 14px/1.35 "微软雅黑", sans-serif !important;
+  color: #222 !important; margin: 0 !important;
+}
+
+/* --- 摘要:单行省略,极浅灰 --- */
+html.tdoc-mode-list .RichContent {
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+html.tdoc-mode-list .RichContent-inner {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+html.tdoc-mode-list .CopyrightRichText-richText {
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+  color: #9a9a9a !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.tdoc-mode-list .RichContent-inner p,
+html.tdoc-mode-list .CopyrightRichText-richText p,
+html.tdoc-mode-list .ztext p {
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+  color: #9a9a9a !important;
+  text-indent: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-height: none !important;
+}
+
+/* --- 作者/时间行 --- */
+html.tdoc-mode-list .AuthorInfo {
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+  padding: 0 !important;
+  margin: 1px 0 0 !important;
+  border: none !important;
+}
+html.tdoc-mode-list .AuthorInfo-name,
+html.tdoc-mode-list .UserLink-link,
+html.tdoc-mode-list .AuthorInfo-detail,
+html.tdoc-mode-list .ContentItem-time {
+  color: #b5b5b5 !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+}
+
+/* --- 卡片内一切多余 div 间距归零 --- */
+html.tdoc-mode-list .Feed > div,
+html.tdoc-mode-list .AnswerItem > div,
+html.tdoc-mode-list .ArticleItem > div {
+  margin: 0 !important;
+  gap: 0 !important;
+}
+
+/* ============================================================
+   MODE 5: PROFILE (zhihu.com/people/xxx) —— 人事档案文档
+   真实 DOM(2026-09):
+   main.App-main > div[itemprop=people]
+     #ProfileHeader.ProfileHeader > .Card > .ProfileHeader-userCover(.UserCover 封面)
+        + .ProfileHeader-content > .ProfileHeader-contentHead(操作按钮)
+        + .ProfileHeader-contentBody > .ProfileHeader-title(.ProfileHeader-name/.ProfileHeader-headline)
+        + .ProfileHeader-info > .ProfileHeader-infoItem
+     #ProfileMain.ProfileMain > .ProfileMain-header > ul.Tabs.ProfileMain-tabs > li.Tabs-item > a.Tabs-link
+     .Profile-main(flex) > .Profile-mainColumn(动态列表) + .Profile-sideColumn(.Profile-lightList 统计)
+   设计:封面隐藏,头像+姓名居中作档案抬头;Tabs 作章节导航;
+        正文双栏(动态 + 档案信息侧栏),整体一张连续 A4 纸
+   ============================================================ */
+html.tdoc-mode-profile,
+html.tdoc-mode-profile body { background: #F0F0F0 !important; }
+
+html.tdoc-mode-profile main.App-main {
+  max-width: 980px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  display: block !important;
+}
+
+/* --- 抬头:封面隐藏,头像/姓名/签名居中 --- */
+html.tdoc-mode-profile .ProfileHeader-userCover,
+html.tdoc-mode-profile .UserCover,
+html.tdoc-mode-profile .ProfileHeader-contentHead { display: none !important; }
+
+html.tdoc-mode-profile #ProfileHeader {
+  background: #fff !important;
+  max-width: 980px !important;
+  width: 100% !important;
+  margin: 20px auto 0 !important;
+  padding: 0 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+}
+html.tdoc-mode-profile #ProfileHeader > .Card {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+html.tdoc-mode-profile .ProfileHeader-content {
+  border-left: none !important;
+  padding: 40px 60px 28px !important;
+  margin: 0 !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+html.tdoc-mode-profile .ProfileHeader-avatar,
+html.tdoc-mode-profile .ProfileHeader-avatarImg,
+html.tdoc-mode-profile .ProfileHeader .Avatar {
+  display: block !important;
+  width: 64px !important;
+  height: 64px !important;
+  border-radius: 50% !important;
+  margin: 0 auto 12px !important;
+  position: static !important;
+}
+html.tdoc-mode-profile .ProfileHeader-title {
+  display: block !important;
+  text-align: center !important;
+  margin: 0 !important;
+}
+html.tdoc-mode-profile .ProfileHeader-name {
+  font: 600 22px/1.4 "微软雅黑", sans-serif !important;
+  color: #333 !important;
+  margin: 0 !important;
+}
+html.tdoc-mode-profile .ProfileHeader-headline {
+  display: block !important;
+  font-size: 13px !important;
+  color: #888 !important;
+  margin: 6px 0 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+html.tdoc-mode-profile .ProfileHeader-contentBody { width: 100% !important; }
+html.tdoc-mode-profile .ProfileHeader-info {
+  display: flex !important;
+  justify-content: center !important;
+  flex-wrap: wrap !important;
+  gap: 4px 18px !important;
+  margin-top: 12px !important;
+  font-size: 12px !important;
+  color: #999 !important;
+}
+html.tdoc-mode-profile .ProfileHeader-infoItem { margin: 0 !important; white-space: nowrap !important; }
+
+/* --- Tabs:章节导航条 --- */
+html.tdoc-mode-profile #ProfileMain {
+  background: #fff !important;
+  max-width: 980px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+  overflow: visible !important;
+}
+html.tdoc-mode-profile .ProfileMain-header { border-top: 1px solid #ECECEC !important; }
+html.tdoc-mode-profile .ProfileMain-tabs {
+  display: flex !important;
+  justify-content: center !important;
+  gap: 8px 28px !important;
+  padding: 0 20px !important;
+  border-bottom: 1px solid #ECECEC !important;
+  overflow: visible !important;
+}
+html.tdoc-mode-profile .Tabs-item { margin: 0 !important; }
+html.tdoc-mode-profile .Tabs-link {
+  font-size: 13px !important;
+  color: #666 !important;
+  line-height: 40px !important;
+  border-bottom: 2px solid transparent !important;
+  text-decoration: none !important;
+}
+html.tdoc-mode-profile .Tabs-link.is-active {
+  color: #1A73E8 !important;
+  font-weight: 600 !important;
+  border-bottom-color: #1A73E8 !important;
+}
+html.tdoc-mode-profile .Tabs-meta { font-size: 12px !important; color: #999 !important; margin-left: 4px !important; }
+
+/* --- 正文:动态列表 + 档案信息侧栏 --- */
+html.tdoc-mode-profile .Profile-main {
+  display: flex !important;
+  gap: 40px !important;
+  padding: 8px 60px 48px !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  justify-content: flex-start !important;
+}
+html.tdoc-mode-profile .Profile-mainColumn {
+  flex: 1 !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+/* 侧边栏(付费咨询/关注关系/认证成就/统计/屏蔽举报)整列隐藏 */
+html.tdoc-mode-profile .Profile-sideColumn { display: none !important; }
+
+/* 动态条目:档案记录风 */
+html.tdoc-mode-profile .Profile-mainColumn .List-item {
+  padding: 16px 0 !important;
+  border-bottom: 1px dotted #D8D8D8 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+html.tdoc-mode-profile .List-itemMeta,
+html.tdoc-mode-profile .ActivityItem-meta {
+  font-size: 12px !important;
+  color: #999 !important;
+  margin: 0 0 6px !important;
+}
+html.tdoc-mode-profile .ActivityItem-metaTitle { font-size: 12px !important; color: #999 !important; }
+/* 自己的主页里作者信息冗余,隐藏 */
+html.tdoc-mode-profile .Profile-mainColumn .ContentItem-meta,
+html.tdoc-mode-profile .Profile-mainColumn .Avatar { display: none !important; }
+
+html.tdoc-mode-profile .ContentItem-title {
+  font: 600 15px/1.5 "微软雅黑", sans-serif !important;
+  color: #333 !important;
+  margin: 0 0 6px !important;
+  border: none !important;
+  padding: 0 !important;
+}
+html.tdoc-mode-profile .ContentItem-title a { color: #333 !important; text-decoration: none !important; }
+html.tdoc-mode-profile .ContentItem-title a:hover { color: #1A73E8 !important; text-decoration: underline !important; }
+html.tdoc-mode-profile .Profile-mainColumn .RichText,
+html.tdoc-mode-profile .Profile-mainColumn .RichContent-inner {
+  font: 13px/1.7 "宋体", "SimSun", serif !important;
+  color: #666 !important;
+}
+html.tdoc-mode-profile .PinItem { padding: 4px 0 !important; }
+html.tdoc-mode-profile .ContentItem-time { font-size: 12px !important; color: #bbb !important; }
+
+/* "阅读全文":蓝色链接(个人主页动态摘要的展开入口,保留) */
+html.tdoc-mode-profile .ContentItem-more,
+html.tdoc-mode-profile [class*="ReadMore"] {
+  font-size: 12px !important;
+  color: #1A73E8 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+}
+
+/* --- 隐藏:操作按钮/关注/底部 --- */
+html.tdoc-mode-profile [class*="FollowButton"],
+html.tdoc-mode-profile [class*="FollowUser"],
+html.tdoc-mode-profile [class*="Message"],
+html.tdoc-mode-profile [class*="ChatButton"],
+html.tdoc-mode-profile [class*="UserActions"],
+html.tdoc-mode-profile [class*="ProfileActions"],
+html.tdoc-mode-profile [class*="ActionMenu"],
+html.tdoc-mode-profile [class*="MoreActions"],
+html.tdoc-mode-profile [class*="DropdownMenu"],
+html.tdoc-mode-profile [class*="BlockUser"],
+html.tdoc-mode-profile [class*="ReportUser"] { display: none !important; }
+
+/* ============================================================
+   v0.6.1 真实 DOM 校准(2026-09 heifetz emotion 版)
+   问题/回答页结构:
+   #root > div > [WechatShareImage, LoadingBar, .css-s8xum0(顶栏), 62px占位div, main.App-main]
+   main > .QuestionPage > .QuestionHeader / #AnswerFormPortalContainer
+        / flex行(#AnswerFormPortalContainer 的下一个兄弟) = 主列 + .Question-sideColumn
+   布局容器均为 css-xxxx 哈希类 → 改用结构选择器,不依赖哈希
+   ============================================================ */
+
+/* --- 广告与干扰补充屏蔽 --- */
+html.tdoc-disguised .css-s8xum0,                       /* 知乎固定顶栏外壳 */
+html.tdoc-disguised #root > div > div:nth-child(4),   /* 顶栏留下的 62px 占位条 */
+html.tdoc-disguised .WechatShareImage,
+html.tdoc-disguised .Pc-word-new,                     /* 信息流插入广告卡 */
+html.tdoc-disguised [class*="Pc-word"],
+html.tdoc-disguised #AnswerFormPortalContainer,       /* 写回答入口占位(1000px 宽白条) */
+html.tdoc-disguised .QuestionHeader-tags,             /* 话题标签 */
+html.tdoc-disguised .Tag,
+html.tdoc-disguised .QuestionHeader-side,             /* 关注者/被浏览 计数板 */
+html.tdoc-disguised .QuestionFollowStatus,
+html.tdoc-disguised .NumberBoard,
+html.tdoc-disguised .QuestionHeader-footer,           /* 关注/写回答/邀请/分享 操作区 */
+html.tdoc-disguised .QuestionButtonGroup,
+html.tdoc-disguised .QuestionHeaderActions,
+html.tdoc-disguised .ContentItem-meta > div:not([class*="AuthorInfo"]),  /* "x 万人赞同" 提示条 */
+html.tdoc-disguised footer[role="contentinfo"],
+html.tdoc-disguised .CornerButtonsGroup { display: none !important; }
+
+/* --- 布局校准:拍平 flex 行,主列对齐纸张 --- */
+html.tdoc-mode-question #AnswerFormPortalContainer + div,
+html.tdoc-mode-answer #AnswerFormPortalContainer + div,
+html.tdoc-mode-question #AnswerFormPortalContainer + div > div:first-child,
+html.tdoc-mode-answer #AnswerFormPortalContainer + div > div:first-child,
+html.tdoc-mode-question .Question-mainColumn,
+html.tdoc-mode-answer .Question-mainColumn,
+html.tdoc-mode-question .Question-mainColumn > div,
+html.tdoc-mode-answer .Question-mainColumn > div,
+html.tdoc-mode-question #QuestionAnswers-answers,
+html.tdoc-mode-answer #QuestionAnswers-answers,
+html.tdoc-mode-question .ListShortcut,
+html.tdoc-mode-answer .ListShortcut,
+html.tdoc-mode-question .List,
+html.tdoc-mode-answer .List {
+  display: block !important;
+  width: 100% !important;
+  max-width: var(--tdoc-paper-w) !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  gap: 0 !important;
+}
+html.tdoc-disguised main.App-main { margin-top: 0 !important; padding: 0 !important; }
+
+/* 回答列表头("1,055 个回答" + 排序):文档式分隔条,排序保留可用 */
+html.tdoc-mode-question .List-header,
+html.tdoc-mode-answer .List-header {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 4px 10px !important;
+  border-bottom: 1px solid #E0E0E0 !important;
+  background: transparent !important;
+}
+html.tdoc-mode-question .List-headerText,
+html.tdoc-mode-answer .List-headerText {
+  font: 600 14px/1.4 "微软雅黑", sans-serif !important;
+  color: #666 !important;
+  margin: 0 !important;
+}
+
+/* 发布时间:居中灰色小字,像文档元信息 */
+html.tdoc-mode-question .ContentItem-time,
+html.tdoc-mode-answer .ContentItem-time {
+  display: block !important;
+  text-align: center !important;
+  font-size: 12px !important;
+  color: #999 !important;
+  margin: 10px 0 0 !important;
+}
+
+/* 站内链接卡片:低调引用块 */
+html.tdoc-disguised .LinkCard.new {
+  background: #FAFAFA !important;
+  border: 1px solid #E5E5E5 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  margin: 10px 0 !important;
+  padding: 8px 12px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  min-height: 0 !important;
+}
+html.tdoc-disguised .LinkCard-image { display: none !important; }
+html.tdoc-disguised .LinkCard-title { font-size: 13px !important; color: #333 !important; }
+
+/* ============================================================
+   正文图片:默认占位符,悬停预览,点击固定
+   - 占位符用 CSS counter 编号,形如【图片 3 · 移入查看 / 点击固定】
+   - 悬停显示原图;点击 figure 空白处固定/取消固定(触屏可用)
+   - 点击已显示的原图不拦截 → 知乎原生 lightbox 照常工作
+   ============================================================ */
+html.tdoc-disguised .RichText,
+html.tdoc-disguised .QuestionRichText,
+html.tdoc-disguised .Post-RichText { counter-reset: tdocfig; }
+html.tdoc-disguised .RichText figure,
+html.tdoc-disguised .QuestionRichText figure,
+html.tdoc-disguised .Post-RichText figure {
+  counter-increment: tdocfig;
+  position: relative;
+  margin: 14px 0 !important;
+}
+html.tdoc-disguised .RichText figure noscript,
+html.tdoc-disguised .QuestionRichText figure noscript,
+html.tdoc-disguised .Post-RichText figure noscript { display: none !important; }
+html.tdoc-disguised .RichText figure img,
+html.tdoc-disguised .QuestionRichText figure img,
+html.tdoc-disguised .Post-RichText figure img { display: none !important; }
+html.tdoc-disguised .RichText figure::before,
+html.tdoc-disguised .QuestionRichText figure::before,
+html.tdoc-disguised .Post-RichText figure::before {
+  content: "【图片 " counter(tdocfig) " · 移入查看 / 点击固定】";
+  display: block;
+  font: 12px/1.6 "宋体", "SimSun", serif !important;
+  color: #888 !important;
+  text-align: center !important;
+  background: #F7F7F7 !important;
+  border: 1px dashed #D9D9D9 !important;
+  border-radius: 3px;
+  padding: 10px 8px !important;
+  margin: 0 !important;
+  cursor: pointer;
+}
+html.tdoc-disguised .RichText figure:hover::before,
+html.tdoc-disguised .RichText figure.tdoc-img-pin::before,
+html.tdoc-disguised .QuestionRichText figure:hover::before,
+html.tdoc-disguised .QuestionRichText figure.tdoc-img-pin::before,
+html.tdoc-disguised .Post-RichText figure:hover::before,
+html.tdoc-disguised .Post-RichText figure.tdoc-img-pin::before { display: none !important; }
+html.tdoc-disguised .RichText figure:hover img,
+html.tdoc-disguised .RichText figure.tdoc-img-pin img,
+html.tdoc-disguised .QuestionRichText figure:hover img,
+html.tdoc-disguised .QuestionRichText figure.tdoc-img-pin img,
+html.tdoc-disguised .Post-RichText figure:hover img,
+html.tdoc-disguised .Post-RichText figure.tdoc-img-pin img { display: block !important; }
+
+/* ============================================================
+   详情模式:拍平知乎原生卡片外壳,避免"白卡套 A4 纸"双层嵌套
+   (原生 .List-item/.Card 自带白底圆角阴影,会让内容区显得又窄又乱)
+   ============================================================ */
+html.tdoc-mode-question .List-item,
+html.tdoc-mode-question .TopstoryItem,
+html.tdoc-mode-question .Card,
+html.tdoc-mode-answer .List-item,
+html.tdoc-mode-answer .TopstoryItem,
+html.tdoc-mode-answer .Card {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+/* 问题页主列宽度对齐纸张,避免标题卡与回答纸宽度不一致 */
+html.tdoc-mode-question .Question-main,
+html.tdoc-mode-question .Question-mainColumn,
+html.tdoc-mode-answer .Question-main,
+html.tdoc-mode-answer .Question-mainColumn {
+  max-width: var(--tdoc-paper-w) !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+/* ============================================================
+   固定侧栏 + 状态栏(以假乱真的 WPS 式工作区)
+   左侧:目录/章节/书签(目录由正文标题实时生成,可点击跳转)
+   右侧:套模板面板 + 最右图标条
+   底部:页面/字数状态栏
+   ============================================================ */
+#__tdoc_panels__ { position: static; }
+
+.tdoc-side {
+  position: fixed;
+  top: var(--tdoc-chrome-h);
+  bottom: var(--tdoc-status-h);
+  background: #FAFAFC;
+  z-index: 2147483645;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  user-select: none;
+}
+.tdoc-side-left {
+  left: 0;
+  width: var(--tdoc-side-l);
+  border-right: 1px solid #E5E6EB;
+}
+.tdoc-side-right {
+  right: 36px;
+  width: calc(var(--tdoc-side-r) - 36px);
+  border-left: 1px solid #E5E6EB;
+  background: #fff;
+}
+@media (min-width: 1200px) {
+  html.tdoc-mode-article .tdoc-side,
+  html.tdoc-mode-question .tdoc-side,
+  html.tdoc-mode-answer .tdoc-side { display: flex; }
+  html.tdoc-mode-article .tdoc-rail,
+  html.tdoc-mode-question .tdoc-rail,
+  html.tdoc-mode-answer .tdoc-rail { display: flex; }
+}
+
+/* --- 左栏标签页 --- */
+.tdoc-side-tabs {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px 8px;
+  font-size: 13px;
+  color: #555;
+  border-bottom: 1px solid #ECECEC;
+  flex-shrink: 0;
+}
+.tdoc-side-tab { cursor: pointer; padding-bottom: 4px; border-bottom: 2px solid transparent; }
+.tdoc-side-tab.active { color: #1A73E8; font-weight: 600; border-bottom-color: #1A73E8; }
+.tdoc-side-tab-extra { margin-left: auto; font-size: 12px; color: #888; cursor: default; }
+.tdoc-side-body { flex: 1; overflow-y: auto; padding: 8px 6px; }
+.tdoc-side-body::-webkit-scrollbar { width: 6px; }
+.tdoc-side-body::-webkit-scrollbar-thumb { background: #DDD; border-radius: 3px; }
+
+/* --- 目录树 --- */
+.tdoc-toc-item {
+  font-size: 12px;
+  color: #444;
+  line-height: 1.5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tdoc-toc-item:hover { background: #F0F1F3; }
+.tdoc-toc-item.active { color: #1A73E8; background: #EAF3FE; }
+.tdoc-toc-item.lv0 { font-weight: 600; color: #333; }
+.tdoc-toc-item.lv1 { padding-left: 20px; }
+.tdoc-toc-item.lv2 { padding-left: 32px; }
+.tdoc-toc-item.lv3 { padding-left: 44px; }
+/* 无标题时的骨架占位(看起来像待加载的目录) */
+.tdoc-toc-skel i {
+  display: block;
+  height: 10px;
+  background: #ECECEC;
+  border-radius: 3px;
+  margin: 12px 10px;
+}
+.tdoc-toc-skel i:nth-child(2) { margin-left: 22px; width: 70%; }
+.tdoc-toc-skel i:nth-child(3) { margin-left: 22px; width: 55%; }
+.tdoc-toc-skel i:nth-child(4) { width: 80%; }
+.tdoc-toc-skel i:nth-child(5) { margin-left: 22px; width: 60%; }
+.tdoc-toc-skel i:nth-child(6) { margin-left: 34px; width: 45%; }
+
+/* --- 右栏:套模板 --- */
+.tdoc-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px;
+  font-size: 13px;
+  color: #333;
+  font-weight: 600;
+}
+.tdoc-side-head-x { color: #999; font-weight: 400; cursor: default; }
+.tdoc-tpl-tabs {
+  display: flex;
+  gap: 16px;
+  padding: 4px 14px 8px;
+  font-size: 12px;
+  color: #666;
+  border-bottom: 1px solid #F0F0F0;
+}
+.tdoc-tpl-tabs span { cursor: default; padding-bottom: 4px; }
+.tdoc-tpl-tabs span.active { color: #1A73E8; font-weight: 600; border-bottom: 2px solid #1A73E8; }
+.tdoc-tpl-filter { padding: 8px 14px; font-size: 12px; color: #888; }
+.tdoc-tpl-grid {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 0 14px 14px;
+  align-content: start;
+}
+.tdoc-tpl-grid::-webkit-scrollbar { width: 6px; }
+.tdoc-tpl-grid::-webkit-scrollbar-thumb { background: #DDD; border-radius: 3px; }
+.tdoc-tpl {
+  position: relative;
+  height: 128px;
+  background: #fff;
+  border: 1px solid #E4E4E4;
+  border-radius: 2px;
+  overflow: hidden;
+  cursor: default;
+}
+.tdoc-tpl i { display: block; height: 3px; background: #D9D9D9; margin: 7px 10px 0; }
+.tdoc-tpl i:first-child { height: 8px; background: #BFBFBF; margin-top: 14px; width: 55%; }
+.tdoc-tpl::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 0;
+}
+.tdoc-tpl.t2::before { height: 26px; background: #F7B500; opacity: .85; }
+.tdoc-tpl.t3::before { height: 26px; background: #1A73E8; opacity: .8; }
+.tdoc-tpl.t4::before { height: 26px; background: #34A853; opacity: .75; }
+.tdoc-tpl.t5::before { height: 26px; background: #E8684A; opacity: .8; }
+.tdoc-tpl.t6 { border-color: #D4380D; }
+.tdoc-tpl.t6::before { height: 26px; background: repeating-linear-gradient(45deg, #D4380D 0 4px, #fff 4px 8px); opacity: .5; }
+.tdoc-tpl.t2 i:first-child, .tdoc-tpl.t3 i:first-child, .tdoc-tpl.t4 i:first-child,
+.tdoc-tpl.t5 i:first-child, .tdoc-tpl.t6 i:first-child { margin-top: 40px; }
+
+/* --- 最右图标条 --- */
+.tdoc-rail {
+  position: fixed;
+  top: var(--tdoc-chrome-h);
+  bottom: var(--tdoc-status-h);
+  right: 0;
+  width: 36px;
+  background: #F2F3F5;
+  border-left: 1px solid #E5E6EB;
+  z-index: 2147483645;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8px;
+  gap: 4px;
+  user-select: none;
+}
+.tdoc-rail-i {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  color: #666; font-size: 14px;
+  border-radius: 4px;
+  cursor: default;
+}
+.tdoc-rail-i:hover { background: #E5E6EB; }
+
+/* --- 底部状态栏 --- */
+.tdoc-statusbar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: var(--tdoc-status-h);
+  background: #F2F3F5;
+  border-top: 1px solid #E0E0E0;
+  z-index: 2147483646;
+  display: none;
+  align-items: center;
+  gap: 20px;
+  padding: 0 14px;
+  font-size: 12px;
+  color: #555;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  user-select: none;
+  white-space: nowrap;
+}
+html.tdoc-disguised .tdoc-statusbar { display: flex; }
+.tdoc-statusbar .tdoc-status-warn { color: #D48806; }
+.tdoc-statusbar .tdoc-status-right { margin-left: auto; color: #777; }
+
+/* ============================================================
+   老板键覆盖层(v0.8)—— 双击 Esc 全屏"无害画面"
+   与伪装态无关(未伪装也能用);z-index 与顶栏同级但 DOM 在后 → 盖住一切
+   ============================================================ */
+#__tdoc_panic__ {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 2147483647;
+  animation: tp-in 0.08s ease-out; /* ≤100ms,肉眼无过程感 */
+}
+@keyframes tp-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ===== 假终端(CI 构建日志风) ===== */
+#__tdoc_panic__.tp-term {
+  background: #0C0C0C;
+  display: flex; flex-direction: column;
+  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+  font-size: 12.5px; line-height: 1.55; color: #CCCCCC;
+  user-select: none;
+}
+.tp-term-bar {
+  height: 30px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 12px;
+  background: #1F1F1F; color: #8A8A8A; font-size: 12px;
+  border-bottom: 1px solid #2A2A2A;
+}
+.tp-term-bar i { width: 10px; height: 10px; border-radius: 50%; background: #3A3A3A; flex-shrink: 0; }
+.tp-term-bar i:first-child { background: #FF5F57; }
+.tp-term-bar i:nth-child(2) { background: #FEBC2E; }
+.tp-term-bar i:nth-child(3) { background: #28C840; }
+.tp-term-bar span { margin-left: 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tp-term-body { flex: 1; overflow: hidden; padding: 10px 14px 16px; }
+.tp-line { white-space: pre-wrap; word-break: break-all; min-height: 1em; }
+.tp-line.cmd { color: #E8E8E8; font-weight: 600; }
+.tp-line.ok { color: #4EC93C; }
+.tp-line.warn { color: #D7BA1A; }
+.tp-cursor { animation: tp-blink 1s step-end infinite; }
+@keyframes tp-blink { 50% { opacity: 0; } }
+
+/* ===== 假表格(Excel 风季度报表) ===== */
+#__tdoc_panic__.tp-sheet {
+  background: #fff;
+  display: flex; flex-direction: column;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 12px; color: #212121;
+  user-select: none;
+}
+.tps-ribbon {
+  height: 40px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 12px; background: #217346; color: #fff;
+}
+.tps-logo {
+  width: 22px; height: 22px; background: #fff; color: #217346;
+  font-weight: 800; border-radius: 3px;
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
+  flex-shrink: 0;
+}
+.tps-docname { font-size: 13px; font-weight: 500; }
+.tps-save { font-size: 11px; opacity: 0.85; }
+.tps-menus { margin-left: auto; display: flex; gap: 2px; overflow: hidden; }
+.tps-menus i { font-style: normal; font-size: 12px; padding: 4px 10px; border-radius: 3px; cursor: default; white-space: nowrap; }
+.tps-menus i.on { background: rgba(255,255,255,0.18); font-weight: 600; }
+.tps-toolbar {
+  height: 34px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 12px; background: #F3F2F1;
+  border-bottom: 1px solid #E1DFDD; color: #444;
+}
+.tps-toolbar b, .tps-toolbar i, .tps-toolbar u { font-size: 12px; cursor: default; }
+.tps-toolbar i { font-style: italic; }
+.tps-toolbar .sep { width: 1px; height: 16px; background: #D2D0CE; }
+.tps-formula {
+  height: 26px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 10px; background: #fff;
+  border-bottom: 1px solid #E1DFDD;
+}
+.tps-formula b {
+  font-style: italic; font-family: Georgia, serif; color: #666;
+  border-right: 1px solid #E1DFDD; padding-right: 10px; font-weight: 600;
+}
+.tps-formula span { font-family: Consolas, monospace; font-size: 12px; }
+.tps-gridwrap { flex: 1; overflow: auto; background: #fff; }
+.tps-grid { border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.tps-grid th {
+  background: #F3F2F1; border-right: 1px solid #D4D4D4; border-bottom: 1px solid #D4D4D4;
+  font-weight: 400; color: #555; text-align: center;
+  min-width: 64px; width: 72px; height: 21px; padding: 0 6px;
+}
+/* 列字母行吸顶、行号列吸左(border-collapse:separate 才能让 sticky 表头正常) */
+.tps-grid tr:first-child th { position: sticky; top: 0; z-index: 2; border-top: 1px solid #D4D4D4; }
+.tps-grid tr th:first-child { position: sticky; left: 0; z-index: 1; min-width: 34px; width: 34px; border-left: 1px solid #D4D4D4; }
+.tps-grid tr:first-child th:first-child { z-index: 3; }
+.tps-grid td {
+  border-right: 1px solid #D4D4D4; border-bottom: 1px solid #D4D4D4;
+  height: 21px; padding: 0 6px;
+  text-align: right; min-width: 64px; width: 72px; white-space: nowrap;
+  font-variant-numeric: tabular-nums; background: #fff;
+}
+.tps-grid td.txt { text-align: left; }
+.tps-grid tr.headrow td { text-align: center; font-weight: 600; color: #333; background: #FAFAFA; border-top: 1px solid #D4D4D4; }
+.tps-grid td.sum { background: #F7FAF7; font-weight: 500; }
+.tps-grid td.sel { outline: 2px solid #217346; outline-offset: -2px; background: #fff; }
+.tps-grid tr.total td { background: #EDF6EE; font-weight: 600; }
+.tps-status {
+  height: 24px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 12px; background: #217346; color: #fff; font-size: 11px;
+}
+.tps-sheet-tab { background: rgba(255,255,255,0.18); padding: 2px 12px; border-radius: 3px 3px 0 0; }
+.tps-status .tps-right { margin-left: auto; opacity: 0.9; }
