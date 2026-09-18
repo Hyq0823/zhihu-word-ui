@@ -1517,7 +1517,18 @@ html.tdoc-disguised [class*="ReplyPopup"] [class*="CommentItem"] {
 }
 html.tdoc-disguised [class*="CommentPopup"] [class*="CommentItem"] a,
 html.tdoc-disguised [class*="ReplyPopup"] [class*="CommentItem"] a {
-  color: #1A73E8 !important; text-decoration: none !important;
+  /* 作者名与批注面板统一:墨灰加粗,不用链接蓝 */
+  color: #44443F !important; text-decoration: none !important; font-weight: 600 !important;
+}
+/* 热评/徽章:知乎橙太跳,压成浅灰 chip(与批注面板同款) */
+html.tdoc-disguised [class*="CommentPopup"] [class*="adge"],
+html.tdoc-disguised [class*="CommentPopup"] [class*="badge"],
+html.tdoc-disguised [class*="CommentPopup"] [class*="Tag"],
+html.tdoc-disguised [class*="ReplyPopup"] [class*="adge"],
+html.tdoc-disguised [class*="ReplyPopup"] [class*="badge"],
+html.tdoc-disguised [class*="ReplyPopup"] [class*="Tag"] {
+  color: #999 !important; background: #F0F0EE !important;
+  font-size: 11px !important; font-weight: 400 !important; padding: 1px 5px !important;
 }
 html.tdoc-disguised [class*="CommentPopup"] [class*="Editor"],
 html.tdoc-disguised [class*="CommentPopup"] [class*="editor"],
